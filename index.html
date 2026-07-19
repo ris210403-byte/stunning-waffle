@@ -10,6 +10,8 @@
 <link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <style>
   :root{
     --ink:#1E2B26;
@@ -793,31 +795,97 @@
     font-size:12.5px;
   }
 
-  .map-canvas{
-    height:220px;
+  .leaflet-map-container{
+    height:320px;
     border-radius:var(--r-lg);
-    background:
-      radial-gradient(circle at 25% 30%, rgba(227,162,60,0.25), transparent 40%),
-      radial-gradient(circle at 75% 60%, rgba(85,115,95,0.35), transparent 40%),
-      var(--ink);
-    position:relative;
-    margin-bottom:14px;
     overflow:hidden;
+    margin-bottom:14px;
+    position:relative;
+    background:var(--ink);
   }
-  .pin{
+  .leaflet-map-container .leaflet-container{
+    font-family:'Plus Jakarta Sans', sans-serif;
+  }
+  .locate-btn{
     position:absolute;
-    width:22px;height:22px;
-    border-radius:50% 50% 50% 0;
+    top:10px; right:10px;
+    z-index:1000;
+    background:#fff;
+    border:none;
+    width:38px;height:38px;
+    border-radius:50%;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3);
+    font-size:16px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .place-popup{
+    font-family:'Plus Jakarta Sans', sans-serif;
+    min-width:160px;
+  }
+  .place-popup .pp-name{
+    font-family:'Fraunces',serif;
+    font-weight:700;
+    font-size:14px;
+    color:var(--coffee);
+    margin-bottom:2px;
+  }
+  .place-popup .pp-dist{
+    font-size:11px;
+    color:#8a7a67;
+    margin-bottom:8px;
+  }
+  .place-popup .pp-actions{
+    display:flex;
+    gap:6px;
+  }
+  .place-popup .pp-btn{
+    font-size:11px;
+    font-weight:700;
+    padding:6px 10px;
+    border-radius:14px;
+    border:none;
+    cursor:pointer;
+    text-decoration:none;
+    display:inline-block;
+  }
+  .place-popup .pp-btn.nav{
     background:var(--accent);
-    transform:rotate(-45deg);
-    border:2px solid var(--ink);
+    color:var(--ink);
   }
-  .map-caption{
-    position:absolute;
-    bottom:8px; left:10px;
-    font-size:10px;
-    color:rgba(243,236,220,0.6);
-    font-weight:600;
+  .place-popup .pp-btn.diary{
+    background:var(--paper-dim);
+    color:var(--coffee);
+  }
+  .nearby-toggle{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    background:var(--leaf);
+    color:#fff;
+    border:none;
+    border-radius:var(--r-md);
+    padding:9px 14px;
+    font-family:inherit;
+    font-weight:700;
+    font-size:12px;
+    cursor:pointer;
+    margin-bottom:12px;
+  }
+  .nearby-toggle.active{
+    background:var(--chili);
+  }
+  .distance-pill{
+    font-size:10.5px;
+    font-weight:700;
+    color:var(--leaf);
+    background:var(--paper-dim);
+    padding:2px 8px;
+    border-radius:20px;
+    display:inline-block;
+    margin-left:6px;
   }
 </style>
 </head>
@@ -899,26 +967,74 @@ const state = {
   blocked: [],
   flaggedByMe: [],   // place ids the current user has reported as closed/moved
   flagCounts: {},    // place id -> number of community reports (simulated)
+  userLocation: null,   // {lat, lng} once geolocation succeeds
+  locationStatus: 'idle', // 'idle' | 'locating' | 'granted' | 'denied' | 'unavailable'
+  nearbyMode: false,      // Discover tab: browsing by distance instead of search text
+  mapView: null,          // {center:[lat,lng], zoom} — preserves pan/zoom across re-renders
 };
+
+let leafletMap = null;
+let leafletMarkers = [];
 
 const CAPS = { guest: { saves: 8, connections: 5 } };
 
+/* ============ GEOLOCATION ============ */
+function requestUserLocation(onDone){
+  if(!('geolocation' in navigator)){
+    state.locationStatus = 'unavailable';
+    if(onDone) onDone();
+    return;
+  }
+  state.locationStatus = 'locating';
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      state.userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      state.locationStatus = 'granted';
+      if(onDone) onDone();
+    },
+    (err)=>{
+      state.locationStatus = 'denied';
+      if(onDone) onDone();
+    },
+    { enableHighAccuracy:true, timeout:8000, maximumAge:60000 }
+  );
+}
+
+/* Distance in km between two lat/lng points (Haversine formula) */
+function distanceKm(lat1, lng1, lat2, lng2){
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLng = (lng2-lng1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+function formatDistance(km){
+  if(km < 1) return Math.round(km*1000) + ' m away';
+  return km.toFixed(1) + ' km away';
+}
+
+function googleMapsDirectionsUrl(lat, lng){
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+}
+
 const PLACES = [
-  {id:'zoo-negara', name:'Zoo Negara', area:'Ampang, KL', cat:'Attraction', kind:'place', icon:'🦁', rating:4.4, tags:['Family','Outdoor'], link:'https://www.zoonegaramalaysia.my'},
-  {id:'jonker-market', name:'Jonker Street Night Market', area:'Melaka', cat:'Street Food', kind:'food', icon:'🏮', rating:4.6, tags:['Street Food','Evening'], link:null},
-  {id:'kopi-ah-chong', name:'Kedai Kopi Ah Chong', area:'Klebang, Melaka', cat:'Kopitiam', kind:'food', icon:'☕', rating:4.7, tags:['Breakfast','Local Fave'], link:null},
-  {id:'pantai-klebang', name:'Pantai Klebang', area:'Melaka', cat:'Beach', kind:'place', icon:'🌅', rating:4.2, tags:['Sunset','Chill'], link:null},
-  {id:'bukit-cina', name:'Bukit Cina', area:'Melaka', cat:'Historical', kind:'place', icon:'⛩️', rating:4.3, tags:['History','Quiet'], link:'https://en.wikipedia.org/wiki/Bukit_China'},
+  {id:'zoo-negara', name:'Zoo Negara', area:'Ampang, KL', cat:'Attraction', kind:'place', icon:'🦁', rating:4.4, tags:['Family','Outdoor'], link:'https://www.zoonegaramalaysia.my', lat:3.2148, lng:101.7625},
+  {id:'jonker-market', name:'Jonker Street Night Market', area:'Melaka', cat:'Street Food', kind:'food', icon:'🏮', rating:4.6, tags:['Street Food','Evening'], link:null, lat:2.1958, lng:102.2464},
+  {id:'kopi-ah-chong', name:'Kedai Kopi Ah Chong', area:'Klebang, Melaka', cat:'Kopitiam', kind:'food', icon:'☕', rating:4.7, tags:['Breakfast','Local Fave'], link:null, lat:2.2114, lng:102.2050},
+  {id:'pantai-klebang', name:'Pantai Klebang', area:'Melaka', cat:'Beach', kind:'place', icon:'🌅', rating:4.2, tags:['Sunset','Chill'], link:null, lat:2.2102, lng:102.1946},
+  {id:'bukit-cina', name:'Bukit Cina', area:'Melaka', cat:'Historical', kind:'place', icon:'⛩️', rating:4.3, tags:['History','Quiet'], link:'https://en.wikipedia.org/wiki/Bukit_China', lat:2.1975, lng:102.2469},
 ];
 
 /* Simulated Google Places search results — not yet in Kaki Jalan's own database.
    In production this would come from a backend call to the Google Places API. */
 const EXTERNAL_RESULTS = [
-  {ext_id:'g1', name:'Capitol Satay Celup', area:'Melaka', cat:'Satay Celup', kind:'food', icon:'🍢', rating:4.5, source:'Google Maps'},
-  {ext_id:'g2', name:'A Famosa Fort', area:'Melaka', cat:'Historical Landmark', kind:'place', icon:'🏰', rating:4.6, source:'Google Maps'},
-  {ext_id:'g3', name:'Low Yong Moh Pastry', area:'Melaka', cat:'Bakery', kind:'food', icon:'🥮', rating:4.3, source:'Google Maps'},
-  {ext_id:'g4', name:'Taman Botanikal Melaka', area:'Ayer Keroh, Melaka', cat:'Nature Park', kind:'place', icon:'🌳', rating:4.1, source:'Google Maps'},
-  {ext_id:'g5', name:"Nancy's Kitchen", area:'Melaka', cat:'Nyonya Restaurant', kind:'food', icon:'🍛', rating:4.4, source:'Google Maps'},
+  {ext_id:'g1', name:'Capitol Satay Celup', area:'Melaka', cat:'Satay Celup', kind:'food', icon:'🍢', rating:4.5, source:'Google Maps', lat:2.1943, lng:102.2489},
+  {ext_id:'g2', name:'A Famosa Fort', area:'Melaka', cat:'Historical Landmark', kind:'place', icon:'🏰', rating:4.6, source:'Google Maps', lat:2.1899, lng:102.2500},
+  {ext_id:'g3', name:'Low Yong Moh Pastry', area:'Melaka', cat:'Bakery', kind:'food', icon:'🥮', rating:4.3, source:'Google Maps', lat:2.1967, lng:102.2478},
+  {ext_id:'g4', name:'Taman Botanikal Melaka', area:'Ayer Keroh, Melaka', cat:'Nature Park', kind:'place', icon:'🌳', rating:4.1, source:'Google Maps', lat:2.2802, lng:102.2842},
+  {ext_id:'g5', name:"Nancy's Kitchen", area:'Melaka', cat:'Nyonya Restaurant', kind:'food', icon:'🍛', rating:4.4, source:'Google Maps', lat:2.1938, lng:102.2495},
 ];
 
 const PEOPLE = [
@@ -1055,6 +1171,8 @@ function renderDiscover(){
       <button class="${state.discoverFilter==='place'?'active':''}" onclick="setDiscoverFilter('place')">📍 Places</button>
     </div>`;
 
+  html += `<button class="nearby-toggle ${state.nearbyMode?'active':''}" onclick="toggleNearbyMode()">📍 ${state.nearbyMode ? 'Showing nearest first' : 'Search around me'}</button>`;
+
   if(isGuest()){
     const pct = Math.min(100, (used/cap)*100);
     html += `
@@ -1064,28 +1182,46 @@ function renderDiscover(){
       </div>`;
   }
 
-  const filtered = PLACES.filter(p=> state.discoverFilter==='all' || p.kind===state.discoverFilter);
+  let filtered = PLACES.filter(p=> state.discoverFilter==='all' || p.kind===state.discoverFilter);
+
+  if(state.nearbyMode && state.userLocation){
+    filtered = filtered.slice().sort((a,b)=>
+      distanceKm(state.userLocation.lat, state.userLocation.lng, a.lat, a.lng) -
+      distanceKm(state.userLocation.lat, state.userLocation.lng, b.lat, b.lng)
+    );
+  }
 
   if(filtered.length===0){
     html += `<div class="empty-note">No ${state.discoverFilter} spots yet.</div>`;
   }
 
-  filtered.forEach(p=>{
-    const saved = state.savedPlaces.includes(p.id);
-    let saveBtn;
-    if(saved){
-      saveBtn = `<button class="btn btn-ghost" onclick="toggleSave('${p.id}')">✓ Saved</button>`;
-    } else if(isGuest() && used>=cap){
-      saveBtn = `<button class="btn btn-locked" onclick="capToast('save')">🔒 Cap reached</button>`;
-    } else {
-      saveBtn = `<button class="btn btn-primary" onclick="toggleSave('${p.id}')">+ Save</button>`;
-    }
-    html += `
+  filtered.forEach(p=> html += placeCardHtml(p));
+  return html;
+}
+
+function placeCardHtml(p){
+  const cap = isGuest() ? CAPS.guest.saves : Infinity;
+  const used = state.savedPlaces.length;
+  const saved = state.savedPlaces.includes(p.id);
+  let saveBtn;
+  if(saved){
+    saveBtn = `<button class="btn btn-ghost" onclick="toggleSave('${p.id}')">✓ Saved</button>`;
+  } else if(isGuest() && used>=cap){
+    saveBtn = `<button class="btn btn-locked" onclick="capToast('save')">🔒 Cap reached</button>`;
+  } else {
+    saveBtn = `<button class="btn btn-primary" onclick="toggleSave('${p.id}')">+ Save</button>`;
+  }
+  let distPill = '';
+  if(state.userLocation){
+    const d = distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng);
+    distPill = `<span class="distance-pill">${formatDistance(d)}</span>`;
+  }
+  return `
       <div class="place-card">
         <div class="place-photo">${p.icon}</div>
         <div class="place-top">
           <div>
-            <span class="kind-pill ${p.kind}">${p.kind==='food'?'Food':'Place'}</span>
+            <span class="kind-pill ${p.kind}">${p.kind==='food'?'Food':'Place'}</span>${distPill}
             <div class="place-name">${p.name}</div>
             <div class="place-meta">${p.area} · ${p.cat}</div>
           </div>
@@ -1102,8 +1238,26 @@ function renderDiscover(){
           ${flagButton(p)}
         </div>
       </div>`;
-  });
-  return html;
+}
+
+function toggleNearbyMode(){
+  if(!state.nearbyMode && !state.userLocation){
+    toast('Finding your location…');
+    requestUserLocation(()=>{
+      if(state.locationStatus === 'granted'){
+        state.nearbyMode = true;
+        toast('Showing places nearest to you first.');
+      } else if(state.locationStatus === 'denied'){
+        toast('Location permission denied — enable it in your browser settings to use this.');
+      } else {
+        toast('Location unavailable on this device.');
+      }
+      render();
+    });
+    return;
+  }
+  state.nearbyMode = !state.nearbyMode;
+  render();
 }
 
 function onSearchInput(val){
@@ -1125,11 +1279,16 @@ function renderSearchResults(query){
     html += `<div class="section-eyebrow" style="margin-top:4px;">Already on Kaki Jalan</div>`;
     own.forEach(p=>{
       const saved = state.savedPlaces.includes(p.id);
+      let distPill = '';
+      if(state.userLocation){
+        const d = distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng);
+        distPill = `<span class="distance-pill">${formatDistance(d)}</span>`;
+      }
       html += `
         <div class="place-card">
           <div class="place-top">
             <div>
-              <span class="kind-pill ${p.kind}">${p.kind==='food'?'Food':'Place'}</span>
+              <span class="kind-pill ${p.kind}">${p.kind==='food'?'Food':'Place'}</span>${distPill}
               <div class="place-name">${p.name}</div>
               <div class="place-meta">${p.area} · ${p.cat}</div>
             </div>
@@ -1151,11 +1310,16 @@ function renderSearchResults(query){
   if(external.length > 0){
     html += `<div class="section-eyebrow" style="margin-top:14px;">Found via Google Maps (simulated)</div>`;
     external.forEach(p=>{
+      let distPill = '';
+      if(state.userLocation){
+        const d = distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng);
+        distPill = `<span class="distance-pill">${formatDistance(d)}</span>`;
+      }
       html += `
         <div class="place-card external">
           <div class="place-top">
             <div>
-              <span class="kind-pill ${p.kind}">${p.kind==='food'?'Food':'Place'}</span> <span class="source-pill">via ${p.source}</span>
+              <span class="kind-pill ${p.kind}">${p.kind==='food'?'Food':'Place'}</span> <span class="source-pill">via ${p.source}</span>${distPill}
               <div class="place-name">${p.icon} ${p.name}</div>
               <div class="place-meta">${p.area} · ${p.cat}</div>
             </div>
@@ -1185,7 +1349,8 @@ function addExternalPlace(extId){
   if(!PLACES.some(p=>p.id===newId)){
     PLACES.push({
       id:newId, name:ext.name, area:ext.area, cat:ext.cat, kind:ext.kind,
-      icon:ext.icon, rating:ext.rating, tags:['New on Kaki Jalan'], link:null
+      icon:ext.icon, rating:ext.rating, tags:['New on Kaki Jalan'], link:null,
+      lat:ext.lat, lng:ext.lng
     });
   }
   state.savedPlaces.push(newId);
@@ -1257,28 +1422,109 @@ function capToast(kind){
 function renderMap(){
   const savedAll = PLACES.filter(p=>state.savedPlaces.includes(p.id));
   const savedList = savedAll.filter(p=> state.mapFilter==='all' || p.kind===state.mapFilter);
-  const positions = [[20,30],[60,20],[35,60],[70,55],[50,75]];
-  let pins = savedList.map((p,i)=>{
-    const idx = savedAll.indexOf(p);
-    const pos = positions[idx % positions.length];
-    const color = p.kind==='food' ? 'var(--chili)' : 'var(--leaf)';
-    return `<div class="pin" style="left:${pos[0]}%; top:${pos[1]}%; background:${color};" title="${p.name}"></div>`;
-  }).join('');
-  return `
-    <div class="section-eyebrow">Realtime</div><div class="section-title">Map</div>
+
+  let html = `<div class="section-eyebrow">Realtime</div><div class="section-title">Map</div>`;
+  html += `
     <div class="kind-filter">
       <button class="${state.mapFilter==='all'?'active':''}" onclick="setMapFilter('all')">All</button>
       <button class="${state.mapFilter==='food'?'active':''}" onclick="setMapFilter('food')">🍜 Food</button>
       <button class="${state.mapFilter==='place'?'active':''}" onclick="setMapFilter('place')">📍 Places</button>
     </div>
-    <div class="map-canvas">${pins}<div class="map-caption">${savedList.length} spot(s) pinned</div></div>
-    ${isGuest() ? `<div class="cap-meter"><div class="cap-meter-row"><span>Saved on map</span><span>${state.savedPlaces.length} / ${CAPS.guest.saves}</span></div><div class="cap-track"><div class="cap-fill" style="width:${Math.min(100,(state.savedPlaces.length/CAPS.guest.saves)*100)}%"></div></div></div>` : ''}
-    <p style="font-size:12px;color:#8a7a67;line-height:1.5;">Tap a saved place in Discover to pin it here. ${isGuest() ? 'Guests get 8 pins — Users get unlimited.' : 'Unlimited pins as a User.'} Chili-red pins are food, leaf-green pins are places.</p>
-  `;
+    <div class="leaflet-map-container">
+      <div id="leafletMap" style="width:100%;height:100%;"></div>
+      <button class="locate-btn" onclick="onLocateMeClick()" title="Find my location">📍</button>
+    </div>`;
+
+  if(isGuest()){
+    html += `<div class="cap-meter"><div class="cap-meter-row"><span>Saved on map</span><span>${state.savedPlaces.length} / ${CAPS.guest.saves}</span></div><div class="cap-track"><div class="cap-fill" style="width:${Math.min(100,(state.savedPlaces.length/CAPS.guest.saves)*100)}%"></div></div></div>`;
+  }
+
+  let locNote = '';
+  if(state.locationStatus === 'denied') locNote = 'Location access denied — tap 📍 to try again, or enable it in your browser settings.';
+  else if(state.locationStatus === 'unavailable') locNote = 'Location isn\'t available on this device/browser.';
+  else if(state.locationStatus === 'granted') locNote = 'Showing your real location. Tap any pin for directions.';
+  else locNote = 'Tap 📍 to find your real location on the map.';
+
+  html += `<p style="font-size:12px;color:#8a7a67;line-height:1.5;">${locNote} ${isGuest() ? 'Guests get 8 pins — Users get unlimited.' : 'Unlimited pins as a User.'} Chili-red pins are food, leaf-green pins are places.</p>`;
+
+  // Defer Leaflet init until after this HTML is actually in the DOM
+  setTimeout(()=> initLeafletMap(savedList), 0);
+
+  return html;
+}
+
+function initLeafletMap(savedList){
+  const container = document.getElementById('leafletMap');
+  if(!container || typeof L === 'undefined') return;
+
+  // Determine center: preserve last view > user location > Melaka default
+  const defaultCenter = [2.1896, 102.2501]; // Melaka town, where most seed places are
+  let center = state.mapView ? state.mapView.center : (state.userLocation ? [state.userLocation.lat, state.userLocation.lng] : defaultCenter);
+  let zoom = state.mapView ? state.mapView.zoom : (state.userLocation ? 14 : 12);
+
+  leafletMap = L.map('leafletMap', { zoomControl:true }).setView(center, zoom);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(leafletMap);
+
+  leafletMap.on('moveend', ()=>{
+    const c = leafletMap.getCenter();
+    state.mapView = { center: [c.lat, c.lng], zoom: leafletMap.getZoom() };
+  });
+
+  // "You are here" marker
+  if(state.userLocation){
+    L.circleMarker([state.userLocation.lat, state.userLocation.lng], {
+      radius: 8, fillColor:'#3E6E8E', fillOpacity:1, color:'#fff', weight:3
+    }).addTo(leafletMap).bindPopup('You are here');
+  }
+
+  // Place markers
+  savedList.forEach(p=>{
+    const color = p.kind==='food' ? '#BE4B33' : '#55735F';
+    const marker = L.circleMarker([p.lat, p.lng], {
+      radius: 9, fillColor: color, fillOpacity: 1, color:'#1E2B26', weight:2
+    }).addTo(leafletMap);
+
+    let distText = '';
+    if(state.userLocation){
+      const d = distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng);
+      distText = `<div class="pp-dist">${formatDistance(d)}</div>`;
+    }
+
+    const popupHtml = `
+      <div class="place-popup">
+        <div class="pp-name">${p.icon} ${p.name}</div>
+        ${distText}
+        <div class="pp-actions">
+          <a class="pp-btn nav" href="${googleMapsDirectionsUrl(p.lat,p.lng)}" target="_blank" rel="noopener">🧭 Navigate</a>
+          <button class="pp-btn diary" onclick="setTab('diary')">📓 Diary</button>
+        </div>
+      </div>`;
+    marker.bindPopup(popupHtml);
+  });
+}
+
+function onLocateMeClick(){
+  toast('Finding your location…');
+  requestUserLocation(()=>{
+    if(state.locationStatus === 'granted'){
+      state.mapView = null; // reset so the map recenters on the fresh location
+      toast('Location found — centering map.');
+    } else if(state.locationStatus === 'denied'){
+      toast('Location permission denied. Enable it in your browser settings to use this.');
+    } else {
+      toast('Location unavailable on this device.');
+    }
+    render();
+  });
 }
 
 function setMapFilter(f){
   state.mapFilter = f;
+  state.mapView = null; // let it reframe when filter changes which pins show
   render();
 }
 
