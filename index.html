@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kaki Jalan</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1E2B26">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1E2B26;
+    --ink-soft:#2A3A33;
+    --gold:#E3A23C;
+    --chili:#BE4B33;
+    --leaf:#55735F;
+    --paper:#F3ECDC;
+    --paper-dim:#E8DEC7;
+    --coffee:#3B2A1E;
+    --accent:#E3A23C;
+    --accent-dim:#E3A23C33;
+    --card-bg:#ffffff;
+    --radius:18px;
+    --r-lg:18px;
+    --r-md:20px;
+    --r-sm:10px;
+    --shadow:0 8px 24px rgba(27,20,10,0.18);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background: radial-gradient(circle at 50% 0%, #33453d 0%, #16211c 70%);
+    min-height:100vh;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:28px 12px;
+    font-family:'Plus Jakarta Sans', sans-serif;
+  }
+  .display{font-family:'Fraunces', serif;}
+
+  /* ===== Edge style presets (shape) ===== */
+  .phone[data-edge="sharp"]{
+    --r-lg:2px;
+    --r-md:4px;
+    --r-sm:2px;
+  }
+  .phone[data-edge="half"]{
+    --r-lg:9px;
+    --r-md:10px;
+    --r-sm:6px;
+  }
+  .phone[data-edge="curved"]{
+    --r-lg:18px;
+    --r-md:20px;
+    --r-sm:10px;
+  }
+
+  /* ===== Design style presets (color) ===== */
+
+  /* ===== Phone shell ===== */
+  .phone{
+    width:400px;
+    max-width:100%;
+    background:var(--paper);
+    border-radius:38px;
+    border:8px solid var(--ink);
+    box-shadow:var(--shadow), 0 0 0 1px rgba(0,0,0,0.2);
+    overflow:hidden;
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    height:820px;
+  }
+
+  /* ===== Top bar ===== */
+  .topbar{
+    background:var(--ink);
+    color:var(--paper);
+    padding:16px 18px 14px;
+    position:relative;
+  }
+  .brand-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .brand-mark{
+    width:30px;height:30px;
+    border-radius:50%;
+    background:var(--accent);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Fraunces',serif;
+    font-weight:700;
+    color:var(--ink);
+    font-size:15px;
+    flex-shrink:0;
+  }
+  .brand-name{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:19px;
+    letter-spacing:0.2px;
+  }
+  .tier-toggle{
+    display:flex;
+    background:rgba(255,255,255,0.08);
+    border-radius:var(--r-md);
+    padding:3px;
+    font-size:11px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+  }
+  .tier-toggle button{
+    border:none;
+    background:transparent;
+    color:rgba(243,236,220,0.55);
+    padding:6px 12px;
+    border-radius:var(--r-md);
+    cursor:pointer;
+    font-family:inherit;
+    font-weight:700;
+    font-size:11px;
+    transition:all .2s ease;
+  }
+  .tier-toggle button.active{
+    background:var(--accent);
+    color:var(--ink);
+  }
+  .demo-label{
+    font-size:9px;
+    opacity:0.45;
+    text-align:right;
+    margin-top:3px;
+    letter-spacing:0.4px;
+  }
+
+  /* ===== Upgrade banner ===== */
+  .upgrade-banner{
+    margin-top:12px;
+    background:linear-gradient(120deg, var(--chili), #a13c27);
+    border-radius:var(--r-lg);
+    padding:10px 12px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .upgrade-banner p{
+    font-size:12px;
+    line-height:1.4;
+    color:#fbe9e2;
+  }
+  .upgrade-banner strong{ color:#fff; }
+  .upgrade-banner button{
+    background:var(--card-bg);
+    color:var(--chili);
+    border:none;
+    border-radius:var(--r-md);
+    padding:7px 14px;
+    font-weight:800;
+    font-size:11px;
+    white-space:nowrap;
+    cursor:pointer;
+    font-family:inherit;
+  }
+
+  /* ===== Content ===== */
+  .content{
+    flex:1;
+    overflow-y:auto;
+    padding:18px 18px 90px;
+  }
+  .content::-webkit-scrollbar{width:0;}
+
+  .section-eyebrow{
+    font-size:11px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--leaf);
+    font-weight:700;
+    margin-bottom:4px;
+  }
+  .section-title{
+    font-family:'Fraunces',serif;
+    font-size:24px;
+    font-weight:600;
+    color:var(--coffee);
+    margin-bottom:16px;
+  }
+
+  .kind-filter{
+    display:flex;
+    gap:6px;
+    background:var(--paper-dim);
+    border-radius:var(--r-md);
+    padding:4px;
+    margin-bottom:16px;
+  }
+  .kind-filter button{
+    flex:1;
+    border:none;
+    background:transparent;
+    padding:8px 10px;
+    border-radius:var(--r-lg);
+    font-family:inherit;
+    font-weight:700;
+    font-size:12px;
+    color:var(--coffee);
+    opacity:0.55;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:5px;
+  }
+  .kind-filter button.active{
+    background:var(--card-bg);
+    opacity:1;
+    box-shadow:0 2px 6px rgba(59,42,30,0.12);
+  }
+  .kind-pill{
+    font-size:9.5px;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:0.3px;
+    padding:2px 8px;
+    border-radius:var(--r-md);
+    display:inline-block;
+  }
+  .kind-pill.food{ background:#fbe4d5; color:var(--chili); }
+  .kind-pill.place{ background:#dfe6e0; color:var(--leaf); }
+
+  .search-bar{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--card-bg);
+    border:1.5px solid #e0d6bf;
+    border-radius:var(--r-md);
+    padding:10px 14px;
+    margin-bottom:14px;
+  }
+  .search-bar input{
+    border:none;
+    outline:none;
+    flex:1;
+    font-family:inherit;
+    font-size:13px;
+    color:var(--coffee);
+    background:transparent;
+  }
+  .search-ic{ font-size:14px; opacity:0.6; }
+  .search-clear{
+    border:none;
+    background:var(--paper-dim);
+    width:20px;height:20px;
+    border-radius:50%;
+    cursor:pointer;
+    font-size:10px;
+    color:var(--coffee);
+  }
+  .place-card.external{
+    border:1.5px dashed var(--gold);
+    background:#fffdf6;
+  }
+  .source-pill{
+    font-size:9.5px;
+    color:#8a7a67;
+    font-weight:700;
+  }
+  .flag-badge{
+    background:#fbe9df;
+    color:var(--chili);
+    font-size:11px;
+    font-weight:700;
+    padding:7px 10px;
+    border-radius:var(--r-sm);
+    margin:8px 0;
+  }
+  .btn-ghost.flagged{
+    background:var(--chili);
+    border-color:var(--chili);
+    color:#fff;
+  }
+
+  /* ===== Cards ===== */
+  .place-card{
+    background:var(--card-bg);
+    border-radius:var(--r-lg);
+    padding:14px;
+    margin-bottom:14px;
+    box-shadow:0 4px 14px rgba(59,42,30,0.08);
+    border:1px solid rgba(59,42,30,0.06);
+  }
+  .place-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .place-photo{
+    width:100%;
+    height:110px;
+    border-radius:var(--r-sm);
+    background:linear-gradient(135deg, var(--leaf), var(--ink));
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:rgba(255,255,255,0.85);
+    font-size:28px;
+    margin-bottom:10px;
+  }
+  .place-name{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:16.5px;
+    color:var(--coffee);
+  }
+  .place-meta{
+    font-size:11.5px;
+    color:#8a7a67;
+    margin-top:2px;
+  }
+  .tag-row{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+    margin-top:8px;
+  }
+  .tag{
+    background:var(--paper-dim);
+    color:var(--coffee);
+    font-size:10.5px;
+    font-weight:700;
+    padding:3px 9px;
+    border-radius:var(--r-md);
+  }
+  .stars{ color:var(--accent); font-size:13px; letter-spacing:1px; }
+  .place-actions{
+    display:flex;
+    gap:8px;
+    margin-top:12px;
+  }
+  .btn{
+    font-family:inherit;
+    font-weight:700;
+    font-size:12px;
+    border-radius:var(--r-md);
+    padding:8px 14px;
+    border:none;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:5px;
+  }
+  .btn-primary{ background:var(--accent); color:var(--ink); }
+  .btn-ghost{ background:transparent; color:var(--leaf); border:1.5px solid var(--leaf); }
+  .btn-locked{ background:#e8e2d2; color:#a89a82; cursor:not-allowed; }
+  .btn:active{ transform:scale(0.97); }
+  .link-btn{
+    font-size:11.5px;
+    color:var(--leaf);
+    text-decoration:underline;
+    text-underline-offset:2px;
+    background:none;
+    border:none;
+    cursor:pointer;
+    font-family:inherit;
+    font-weight:600;
+    padding:0;
+  }
+
+  /* ===== Cap meter ===== */
+  .cap-meter{
+    background:var(--card-bg);
+    border-radius:var(--r-lg);
+    padding:12px 14px;
+    margin-bottom:14px;
+    border:1px dashed var(--leaf);
+  }
+  .cap-meter-row{
+    display:flex;
+    justify-content:space-between;
+    font-size:11.5px;
+    font-weight:700;
+    color:var(--coffee);
+    margin-bottom:6px;
+  }
+  .cap-track{
+    height:6px;
+    background:var(--paper-dim);
+    border-radius:var(--r-sm);
+    overflow:hidden;
+  }
+  .cap-fill{
+    height:100%;
+    background:var(--accent);
+    transition:width .3s ease;
+  }
+  .cap-fill.full{ background:var(--chili); }
+
+  /* ===== Bottom nav ===== */
+  .bottomnav{
+    position:absolute;
+    bottom:0; left:0; right:0;
+    background:var(--ink);
+    display:flex;
+    justify-content:space-around;
+    padding:10px 6px 14px;
+    border-top:1px solid rgba(255,255,255,0.06);
+  }
+  .navbtn{
+    background:none;
+    border:none;
+    color:rgba(243,236,220,0.45);
+    font-family:inherit;
+    font-size:10px;
+    font-weight:700;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    cursor:pointer;
+    padding:4px 8px;
+  }
+  .navbtn .ic{ font-size:18px; }
+  .navbtn.active{ color:var(--accent); }
+
+  /* ===== Me tab ===== */
+  .profile-head{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin-bottom:18px;
+  }
+  .wallpaper-swatch.upload-swatch{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--paper-dim);
+    border:2px dashed #b8ab8f;
+    font-size:16px;
+    color:var(--coffee);
+  }
+  .section-eyebrow, .section-title{
+    text-shadow:0 1px 3px rgba(255,255,255,0.45);
+  }
+  .style-swatch-row{
+    display:flex;
+    gap:10px;
+    margin-bottom:8px;
+    flex-wrap:wrap;
+  }
+  .style-swatch{
+    padding:8px 14px;
+    border-radius:var(--r-md);
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+    border:2px solid transparent;
+    background:var(--paper-dim);
+    color:var(--coffee);
+  }
+  .style-swatch.selected{
+    border-color:var(--coffee);
+  }
+  .wallpaper-row{
+    display:flex;
+    gap:10px;
+    margin-bottom:8px;
+    overflow-x:auto;
+    padding-bottom:4px;
+  }
+  .wallpaper-swatch{
+    flex-shrink:0;
+    width:56px;height:40px;
+    border-radius:var(--r-sm);
+    cursor:pointer;
+    border:2.5px solid transparent;
+  }
+  .wallpaper-swatch.selected{
+    border-color:var(--coffee);
+  }
+  .sub-label{
+    font-size:10.5px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    color:#8a7a67;
+    margin-bottom:6px;
+    margin-top:4px;
+  }
+  .wallpaper-swatch.reset-swatch{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--paper-dim);
+    border:2px dashed #b8ab8f;
+    font-size:16px;
+    color:var(--coffee);
+  }
+  .avatar{
+    width:68px;height:68px;
+    border-radius:50%;
+    background:var(--accent);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Fraunces',serif;
+    font-weight:700;
+    font-size:26px;
+    color:var(--ink);
+    flex-shrink:0;
+    position:relative;
+    border:3px solid #fff;
+    box-shadow:0 3px 10px rgba(0,0,0,0.15);
+  }
+  .avatar.locked{
+    background:#cfc6b3;
+    color:#8a7a67;
+  }
+  .avatar-edit{
+    position:absolute;
+    bottom:-2px; right:-2px;
+    width:22px;height:22px;
+    background:var(--leaf);
+    border-radius:50%;
+    border:2px solid #fff;
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;
+    color:#fff;
+    cursor:pointer;
+  }
+  .profile-name{
+    font-family:'Fraunces',serif;
+    font-size:19px;
+    font-weight:600;
+    color:var(--coffee);
+  }
+  .profile-tier-badge{
+    display:inline-block;
+    font-size:10px;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    padding:2px 9px;
+    border-radius:var(--r-md);
+    margin-top:4px;
+  }
+  .badge-guest{ background:#e8e2d2; color:#8a7a67; }
+  .badge-user{ background:var(--accent-dim); color:var(--coffee); }
+
+  .stat-row{
+    display:flex;
+    gap:8px;
+    margin-bottom:18px;
+  }
+  .stat-box{
+    flex:1;
+    background:var(--card-bg);
+    border-radius:var(--r-lg);
+    padding:12px 8px;
+    text-align:center;
+    box-shadow:0 3px 10px rgba(59,42,30,0.06);
+  }
+  .stat-num{
+    font-family:'Fraunces',serif;
+    font-size:20px;
+    font-weight:700;
+    color:var(--coffee);
+  }
+  .stat-label{
+    font-size:9.5px;
+    color:#8a7a67;
+    text-transform:uppercase;
+    letter-spacing:0.4px;
+    font-weight:700;
+    margin-top:2px;
+  }
+
+  /* stamp - signature element */
+  .stamp-wrap{
+    display:flex;
+    gap:12px;
+    overflow-x:auto;
+    padding-bottom:6px;
+    margin-bottom:18px;
+  }
+  .stamp{
+    flex-shrink:0;
+    width:78px;height:78px;
+    border-radius:50%;
+    border:2.5px dashed var(--chili);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    transform:rotate(-7deg);
+    color:var(--chili);
+    text-align:center;
+    background:repeating-radial-gradient(circle, transparent 0 2px, rgba(190,75,51,0.03) 2px 3px);
+    opacity:1;
+  }
+  .stamp.dim{
+    border-color:#cfc6b3;
+    color:#b5a892;
+  }
+  .stamp .stamp-ic{ font-size:20px; }
+  .stamp .stamp-txt{
+    font-size:7.5px;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:0.3px;
+    margin-top:2px;
+    line-height:1.1;
+  }
+
+  .theme-row{
+    display:flex;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .swatch{
+    width:34px;height:34px;
+    border-radius:50%;
+    cursor:pointer;
+    border:3px solid transparent;
+    transition:transform .15s ease;
+  }
+  .swatch.selected{
+    border-color:var(--coffee);
+    transform:scale(1.1);
+  }
+
+  .hue-slider-wrap{
+    margin-bottom:8px;
+  }
+  .hue-slider{
+    -webkit-appearance:none;
+    appearance:none;
+    width:100%;
+    height:14px;
+    border-radius:20px;
+    background:linear-gradient(to right,
+      #ff0000 0%, #ffff00 15%, #00ff00 30%, #00ffff 45%, #0000ff 60%, #ff00ff 75%, #ff0000 90%,
+      #ffffff 90%, #808080 95%, #000000 100%);
+    outline:none;
+    cursor:pointer;
+    display:block;
+  }
+  .hue-slider::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:24px;height:24px;
+    border-radius:50%;
+    background:#fff;
+    border:3px solid var(--coffee);
+    box-shadow:0 2px 6px rgba(0,0,0,0.25);
+    cursor:pointer;
+  }
+  .hue-slider::-moz-range-thumb{
+    width:24px;height:24px;
+    border-radius:50%;
+    background:#fff;
+    border:3px solid var(--coffee);
+    box-shadow:0 2px 6px rgba(0,0,0,0.25);
+    cursor:pointer;
+  }
+  .hue-slider::-moz-range-track{
+    height:14px;
+    border-radius:20px;
+    background:transparent;
+  }
+  .hue-preview-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:8px;
+  }
+  .hue-preview-swatch{
+    width:32px;height:32px;
+    border-radius:50%;
+    border:3px solid #fff;
+    box-shadow:0 2px 6px rgba(0,0,0,0.18);
+    flex-shrink:0;
+  }
+  .hue-preview-label{
+    font-size:11.5px;
+    font-weight:600;
+    color:#8a7a67;
+  }
+
+  .field-locked{
+    background:#eee6d3;
+    border-radius:var(--r-sm);
+    padding:12px;
+    font-size:12px;
+    color:#8a7a67;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:10px;
+  }
+
+  .person-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    background:var(--card-bg);
+    border-radius:var(--r-lg);
+    padding:10px 12px;
+    margin-bottom:10px;
+    box-shadow:0 3px 10px rgba(59,42,30,0.06);
+  }
+  .person-avatar{
+    width:42px;height:42px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Fraunces',serif;
+    font-weight:700;
+    color:#fff;
+    font-size:15px;
+    flex-shrink:0;
+  }
+  .person-info{ flex:1; }
+  .person-name{ font-weight:700; font-size:13.5px; color:var(--coffee); }
+  .person-badge{ font-size:10px; color:var(--leaf); font-weight:700; }
+  .person-actions{ display:flex; gap:6px; }
+  .icon-btn{
+    width:30px;height:30px;
+    border-radius:50%;
+    border:none;
+    background:var(--paper-dim);
+    cursor:pointer;
+    font-size:13px;
+    display:flex;align-items:center;justify-content:center;
+  }
+
+  .toast{
+    position:absolute;
+    left:18px; right:18px;
+    bottom:78px;
+    background:var(--ink);
+    color:var(--paper);
+    padding:12px 14px;
+    border-radius:var(--r-sm);
+    font-size:12.5px;
+    font-weight:600;
+    box-shadow:0 8px 20px rgba(0,0,0,0.3);
+    display:none;
+    align-items:center;
+    gap:8px;
+    z-index:50;
+  }
+  .toast.show{ display:flex; }
+  .toast .lock-ic{ color:var(--gold); }
+
+  .empty-note{
+    text-align:center;
+    padding:30px 14px;
+    color:#8a7a67;
+    font-size:12.5px;
+  }
+
+  .map-canvas{
+    height:220px;
+    border-radius:var(--r-lg);
+    background:
+      radial-gradient(circle at 25% 30%, rgba(227,162,60,0.25), transparent 40%),
+      radial-gradient(circle at 75% 60%, rgba(85,115,95,0.35), transparent 40%),
+      var(--ink);
+    position:relative;
+    margin-bottom:14px;
+    overflow:hidden;
+  }
+  .pin{
+    position:absolute;
+    width:22px;height:22px;
+    border-radius:50% 50% 50% 0;
+    background:var(--accent);
+    transform:rotate(-45deg);
+    border:2px solid var(--ink);
+  }
+  .map-caption{
+    position:absolute;
+    bottom:8px; left:10px;
+    font-size:10px;
+    color:rgba(243,236,220,0.6);
+    font-weight:600;
+  }
+</style>
+</head>
+<body>
+
+<div class="phone" id="phoneShell">
+  <div class="topbar">
+    <div class="brand-row">
+      <div class="brand">
+        <div class="brand-mark">K</div>
+        <div class="brand-name">Kaki Jalan</div>
+      </div>
+      <div class="tier-toggle">
+        <button id="btnGuest" onclick="setTier('guest')">Guest</button>
+        <button id="btnUser" onclick="setTier('user')">User</button>
+      </div>
+    </div>
+    <div class="demo-label">Role switch — demo only, for testing tier gating</div>
+    <div id="upgradeBanner"></div>
+  </div>
+
+  <div class="content" id="content"></div>
+
+  <div class="toast" id="toast"><span class="lock-ic">🔒</span><span id="toastText"></span></div>
+
+  <div class="bottomnav">
+    <button class="navbtn" data-tab="discover" onclick="setTab('discover')"><span class="ic">🍜</span>Discover</button>
+    <button class="navbtn" data-tab="map" onclick="setTab('map')"><span class="ic">📍</span>Map</button>
+    <button class="navbtn" data-tab="diary" onclick="setTab('diary')"><span class="ic">📓</span>Diary</button>
+    <button class="navbtn" data-tab="people" onclick="setTab('people')"><span class="ic">👥</span>People</button>
+    <button class="navbtn" data-tab="me" onclick="setTab('me')"><span class="ic">🧑</span>Me</button>
+  </div>
+</div>
+
+<script>
+/* ============ STATE ============ */
+/* THEMES and FONT_COLORS removed — replaced by hue sliders below */
+
+const EDGE_STYLES = [
+  {id:'sharp', label:'Sharp'},
+  {id:'half', label:'Half Curve'},
+  {id:'curved', label:'Curved'},
+];
+
+const WALLPAPERS = [
+  {id:'none', group:'default', label:'Default', css:null},
+
+  // 12 gradients
+  {id:'g1', group:'gradient', css:'linear-gradient(135deg, #E3A23C, #BE4B33)'},
+  {id:'g2', group:'gradient', css:'linear-gradient(135deg, #55735F, #1E2B26)'},
+  {id:'g3', group:'gradient', css:'linear-gradient(135deg, #3E6E8E, #55735F)'},
+  {id:'g4', group:'gradient', css:'linear-gradient(135deg, #8C4B6B, #BE4B33)'},
+  {id:'g5', group:'gradient', css:'linear-gradient(135deg, #F3ECDC, #E3A23C)'},
+  {id:'g6', group:'gradient', css:'linear-gradient(135deg, #FF9A5A, #FF6F61)'},
+  {id:'g7', group:'gradient', css:'linear-gradient(135deg, #2FBF9F, #56C596)'},
+  {id:'g8', group:'gradient', css:'linear-gradient(135deg, #4B3F72, #2C2049)'},
+  {id:'g9', group:'gradient', css:'linear-gradient(135deg, #FFD166, #FF7A5C)'},
+  {id:'g10', group:'gradient', css:'linear-gradient(135deg, #0F4C75, #3282B8)'},
+  {id:'g11', group:'gradient', css:'linear-gradient(135deg, #F6B6C6, #D8737F)'},
+  {id:'g12', group:'gradient', css:'linear-gradient(135deg, #6B4226, #3B2A1E)'},
+];
+
+const state = {
+  tier: 'guest',           // 'guest' | 'user'
+  tab: 'discover',
+  discoverFilter: 'all',   // 'all' | 'food' | 'place'
+  mapFilter: 'all',        // 'all' | 'food' | 'place'
+  searchQuery: '',
+  accentHue: 36,           // 0-360, drives Theme Accent slider
+  fontHue: 24,             // 0-360, drives Font Colour slider — User only
+  bgHue: 40,               // 0-360, drives Solid Background slider — User only
+  bgLightMode: 'light',    // 'light' | 'dark' — Solid Background — User only
+  edgeStyle: 'curved',     // 'sharp' | 'half' | 'curved' — User only
+  wallpaper: 'none',       // full app background — User only
+  customWallpaperUrl: null,
+  profileName: '',
+  savedPlaces: ['zoo-negara', 'jonker-market'],
+  connections: ['aiman','siti'],
+  blocked: [],
+  flaggedByMe: [],   // place ids the current user has reported as closed/moved
+  flagCounts: {},    // place id -> number of community reports (simulated)
+};
+
+const CAPS = { guest: { saves: 8, connections: 5 } };
+
+const PLACES = [
+  {id:'zoo-negara', name:'Zoo Negara', area:'Ampang, KL', cat:'Attraction', kind:'place', icon:'🦁', rating:4.4, tags:['Family','Outdoor'], link:'https://www.zoonegaramalaysia.my'},
+  {id:'jonker-market', name:'Jonker Street Night Market', area:'Melaka', cat:'Street Food', kind:'food', icon:'🏮', rating:4.6, tags:['Street Food','Evening'], link:null},
+  {id:'kopi-ah-chong', name:'Kedai Kopi Ah Chong', area:'Klebang, Melaka', cat:'Kopitiam', kind:'food', icon:'☕', rating:4.7, tags:['Breakfast','Local Fave'], link:null},
+  {id:'pantai-klebang', name:'Pantai Klebang', area:'Melaka', cat:'Beach', kind:'place', icon:'🌅', rating:4.2, tags:['Sunset','Chill'], link:null},
+  {id:'bukit-cina', name:'Bukit Cina', area:'Melaka', cat:'Historical', kind:'place', icon:'⛩️', rating:4.3, tags:['History','Quiet'], link:'https://en.wikipedia.org/wiki/Bukit_China'},
+];
+
+/* Simulated Google Places search results — not yet in Kaki Jalan's own database.
+   In production this would come from a backend call to the Google Places API. */
+const EXTERNAL_RESULTS = [
+  {ext_id:'g1', name:'Capitol Satay Celup', area:'Melaka', cat:'Satay Celup', kind:'food', icon:'🍢', rating:4.5, source:'Google Maps'},
+  {ext_id:'g2', name:'A Famosa Fort', area:'Melaka', cat:'Historical Landmark', kind:'place', icon:'🏰', rating:4.6, source:'Google Maps'},
+  {ext_id:'g3', name:'Low Yong Moh Pastry', area:'Melaka', cat:'Bakery', kind:'food', icon:'🥮', rating:4.3, source:'Google Maps'},
+  {ext_id:'g4', name:'Taman Botanikal Melaka', area:'Ayer Keroh, Melaka', cat:'Nature Park', kind:'place', icon:'🌳', rating:4.1, source:'Google Maps'},
+  {ext_id:'g5', name:"Nancy's Kitchen", area:'Melaka', cat:'Nyonya Restaurant', kind:'food', icon:'🍛', rating:4.4, source:'Google Maps'},
+];
+
+const PEOPLE = [
+  {id:'aiman', name:'Aiman', badge:'Local Legend', color:'#BE4B33', visits:212},
+  {id:'siti', name:'Siti', badge:'Trusted Local', color:'#55735F', visits:88},
+  {id:'chefwan', name:'ChefWan', badge:'Verified Influencer', color:'#E3A23C', visits:340},
+  {id:'huda', name:'Huda', badge:'Regular', color:'#3E6E8E', visits:14},
+];
+
+/* ============ HELPERS ============ */
+function toast(msg){
+  const t = document.getElementById('toast');
+  document.getElementById('toastText').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(()=> t.classList.remove('show'), 2600);
+}
+
+/* Maps a slider value (0-400) to a colour.
+   0-360 = rainbow hue at the given saturation/lightness.
+   360-400 = grayscale ramp from white to black. */
+function hueValueToColor(value, sat, light){
+  if(value <= 360){
+    return `hsl(${value}, ${sat}%, ${light}%)`;
+  }
+  const t = (value - 360) / 40;
+  const gray = Math.round(100 - t * 100);
+  return `hsl(0, 0%, ${gray}%)`;
+}
+
+function applyTheme(){
+  const hex = hueValueToColor(state.accentHue, 68, 54);
+  document.documentElement.style.setProperty('--accent', hex);
+  document.documentElement.style.setProperty('--accent-dim', hex.replace('hsl(', 'hsla(').replace(')', ', 0.2)'));
+}
+
+function setTier(t){
+  state.tier = t;
+  document.getElementById('btnGuest').classList.toggle('active', t==='guest');
+  document.getElementById('btnUser').classList.toggle('active', t==='user');
+  renderBanner();
+  render();
+}
+
+function setTab(t){
+  state.tab = t;
+  document.querySelectorAll('.navbtn').forEach(b=> b.classList.toggle('active', b.dataset.tab===t));
+  render();
+}
+
+function isGuest(){ return state.tier === 'guest'; }
+
+function renderBanner(){
+  const el = document.getElementById('upgradeBanner');
+  if(!isGuest()){ el.innerHTML=''; return; }
+  el.innerHTML = `
+    <div class="upgrade-banner">
+      <p><strong>Guest mode.</strong> Unlock unlimited saves, connections &amp; photo uploads.</p>
+      <button onclick="setTier('user')">Upgrade</button>
+    </div>`;
+}
+
+/* ============ RENDER ============ */
+function render(){
+  applyTheme();
+  const effectiveEdge = isGuest() ? 'curved' : state.edgeStyle;
+  const shell = document.getElementById('phoneShell');
+  shell.setAttribute('data-edge', effectiveEdge);
+  applyFontColor(shell);
+  applyWallpaper(shell);
+  const c = document.getElementById('content');
+  if(state.tab==='discover') c.innerHTML = renderDiscover();
+  if(state.tab==='map') c.innerHTML = renderMap();
+  if(state.tab==='diary') c.innerHTML = renderDiary();
+  if(state.tab==='people') c.innerHTML = renderPeople();
+  if(state.tab==='me') c.innerHTML = renderMe();
+}
+
+function applyFontColor(shell){
+  if(isGuest()){
+    shell.style.removeProperty('--coffee');
+    return;
+  }
+  shell.style.setProperty('--coffee', hueValueToColor(state.fontHue, 42, 26));
+}
+
+function applyWallpaper(shell){
+  if(isGuest() || state.wallpaper === 'none'){
+    shell.style.backgroundImage = '';
+    shell.style.background = '';
+    return;
+  }
+  if(state.wallpaper === 'custom' && state.customWallpaperUrl){
+    shell.style.background = '';
+    shell.style.backgroundImage = `url('${state.customWallpaperUrl}')`;
+    shell.style.backgroundSize = 'cover';
+    shell.style.backgroundPosition = 'center';
+    return;
+  }
+  if(state.wallpaper === 'solid'){
+    const lightness = state.bgLightMode === 'dark' ? 22 : 88;
+    shell.style.backgroundImage = '';
+    shell.style.background = hueValueToColor(state.bgHue, 55, lightness);
+    return;
+  }
+  const preset = WALLPAPERS.find(w=>w.id===state.wallpaper);
+  if(preset && preset.css){
+    shell.style.backgroundImage = '';
+    shell.style.background = preset.css;
+  }
+}
+
+function renderDiscover(){
+  const cap = isGuest() ? CAPS.guest.saves : Infinity;
+  const used = state.savedPlaces.length;
+  let html = `<div class="section-eyebrow">Browse by</div><div class="section-title">Discover</div>`;
+
+  html += `
+    <div class="search-bar">
+      <span class="search-ic">🔎</span>
+      <input id="searchInput" placeholder="Search any place or food spot..." value="${state.searchQuery}" oninput="onSearchInput(this.value)">
+      ${state.searchQuery ? `<button class="search-clear" onclick="onSearchInput('')">✕</button>` : ''}
+    </div>`;
+
+  if(state.searchQuery.trim().length > 0){
+    html += renderSearchResults(state.searchQuery);
+    return html;
+  }
+
+  html += `
+    <div class="kind-filter">
+      <button class="${state.discoverFilter==='all'?'active':''}" onclick="setDiscoverFilter('all')">All</button>
+      <button class="${state.discoverFilter==='food'?'active':''}" onclick="setDiscoverFilter('food')">🍜 Food</button>
+      <button class="${state.discoverFilter==='place'?'active':''}" onclick="setDiscoverFilter('place')">📍 Places</button>
+    </div>`;
+
+  if(isGuest()){
+    const pct = Math.min(100, (used/cap)*100);
+    html += `
+      <div class="cap-meter">
+        <div class="cap-meter-row"><span>Saved spots</span><span>${used} / ${cap}</span></div>
+        <div class="cap-track"><div class="cap-fill ${used>=cap?'full':''}" style="width:${pct}%"></div></div>
+      </div>`;
+  }
+
+  const filtered = PLACES.filter(p=> state.discoverFilter==='all' || p.kind===state.discoverFilter);
+
+  if(filtered.length===0){
+    html += `<div class="empty-note">No ${state.discoverFilter} spots yet.</div>`;
+  }
+
+  filtered.forEach(p=>{
+    const saved = state.savedPlaces.includes(p.id);
+    let saveBtn;
+    if(saved){
+      saveBtn = `<button class="btn btn-ghost" onclick="toggleSave('${p.id}')">✓ Saved</button>`;
+    } else if(isGuest() && used>=cap){
+      saveBtn = `<button class="btn btn-locked" onclick="capToast('save')">🔒 Cap reached</button>`;
+    } else {
+      saveBtn = `<button class="btn btn-primary" onclick="toggleSave('${p.id}')">+ Save</button>`;
+    }
+    html += `
+      <div class="place-card">
+        <div class="place-photo">${p.icon}</div>
+        <div class="place-top">
+          <div>
+            <span class="kind-pill ${p.kind}">${p.kind==='food'?'Food':'Place'}</span>
+            <div class="place-name">${p.name}</div>
+            <div class="place-meta">${p.area} · ${p.cat}</div>
+          </div>
+          <div class="stars">${'★'.repeat(Math.round(p.rating))}${'☆'.repeat(5-Math.round(p.rating))}</div>
+        </div>
+        <div class="tag-row">${p.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+        ${flagBadge(p)}
+        <div class="place-actions">
+          ${saveBtn}
+          <button class="btn btn-ghost" onclick="setTab('diary')">📓 Diary</button>
+          ${linkButton(p)}
+        </div>
+        <div class="place-actions" style="margin-top:6px;">
+          ${flagButton(p)}
+        </div>
+      </div>`;
+  });
+  return html;
+}
+
+function onSearchInput(val){
+  state.searchQuery = val;
+  render();
+}
+
+function renderSearchResults(query){
+  const q = query.toLowerCase();
+  const own = PLACES.filter(p => p.name.toLowerCase().includes(q) || p.cat.toLowerCase().includes(q));
+  const external = EXTERNAL_RESULTS.filter(p =>
+    (p.name.toLowerCase().includes(q) || p.cat.toLowerCase().includes(q)) &&
+    !PLACES.some(op => op.name.toLowerCase() === p.name.toLowerCase())
+  );
+
+  let html = '';
+
+  if(own.length > 0){
+    html += `<div class="section-eyebrow" style="margin-top:4px;">Already on Kaki Jalan</div>`;
+    own.forEach(p=>{
+      const saved = state.savedPlaces.includes(p.id);
+      html += `
+        <div class="place-card">
+          <div class="place-top">
+            <div>
+              <span class="kind-pill ${p.kind}">${p.kind==='food'?'Food':'Place'}</span>
+              <div class="place-name">${p.name}</div>
+              <div class="place-meta">${p.area} · ${p.cat}</div>
+            </div>
+            <div class="stars">${'★'.repeat(Math.round(p.rating))}</div>
+          </div>
+          <div class="place-actions">
+            ${saved
+              ? `<button class="btn btn-ghost">✓ Saved</button>`
+              : `<button class="btn btn-primary" onclick="toggleSave('${p.id}')">+ Save</button>`}
+          </div>
+          ${flagBadge(p)}
+          <div class="place-actions" style="margin-top:6px;">
+            ${flagButton(p)}
+          </div>
+        </div>`;
+    });
+  }
+
+  if(external.length > 0){
+    html += `<div class="section-eyebrow" style="margin-top:14px;">Found via Google Maps (simulated)</div>`;
+    external.forEach(p=>{
+      html += `
+        <div class="place-card external">
+          <div class="place-top">
+            <div>
+              <span class="kind-pill ${p.kind}">${p.kind==='food'?'Food':'Place'}</span> <span class="source-pill">via ${p.source}</span>
+              <div class="place-name">${p.icon} ${p.name}</div>
+              <div class="place-meta">${p.area} · ${p.cat}</div>
+            </div>
+            <div class="stars">${'★'.repeat(Math.round(p.rating))}</div>
+          </div>
+          <p style="font-size:11.5px;color:#8a7a67;margin:6px 0 10px;">Not yet on Kaki Jalan — went here and think it's worth logging?</p>
+          <div class="place-actions">
+            <button class="btn btn-primary" onclick="addExternalPlace('${p.ext_id}')">+ Add to Kaki Jalan</button>
+          </div>
+        </div>`;
+    });
+  }
+
+  if(own.length===0 && external.length===0){
+    html += `<div class="empty-note">No matches for "${query}" — try a different search.</div>`;
+  }
+
+  return html;
+}
+
+function addExternalPlace(extId){
+  const cap = isGuest() ? CAPS.guest.saves : Infinity;
+  if(state.savedPlaces.length >= cap){ capToast('save'); return; }
+  const ext = EXTERNAL_RESULTS.find(p=>p.ext_id===extId);
+  if(!ext) return;
+  const newId = 'user-added-' + ext.ext_id;
+  if(!PLACES.some(p=>p.id===newId)){
+    PLACES.push({
+      id:newId, name:ext.name, area:ext.area, cat:ext.cat, kind:ext.kind,
+      icon:ext.icon, rating:ext.rating, tags:['New on Kaki Jalan'], link:null
+    });
+  }
+  state.savedPlaces.push(newId);
+  state.searchQuery = '';
+  toast(`${ext.name} added to Kaki Jalan and saved to your diary.`);
+  setTab('diary');
+}
+
+function setDiscoverFilter(f){
+  state.discoverFilter = f;
+  render();
+}
+
+function flagBadge(p){
+  const count = state.flagCounts[p.id] || 0;
+  if(count === 0) return '';
+  return `<div class="flag-badge">⚠️ ${count} report${count>1?'s':''} — being verified by the community</div>`;
+}
+
+function flagButton(p){
+  const flagged = state.flaggedByMe.includes(p.id);
+  if(flagged){
+    return `<button class="btn btn-ghost flagged" onclick="flagPlace('${p.id}')">🚩 Reported</button>`;
+  }
+  return `<button class="btn btn-ghost" onclick="flagPlace('${p.id}')">🚩 Closed/Moved?</button>`;
+}
+
+function flagPlace(id){
+  const flagged = state.flaggedByMe.includes(id);
+  if(flagged){
+    state.flaggedByMe = state.flaggedByMe.filter(x=>x!==id);
+    state.flagCounts[id] = Math.max(0, (state.flagCounts[id]||0) - 1);
+    toast('Report withdrawn.');
+  } else {
+    state.flaggedByMe.push(id);
+    state.flagCounts[id] = (state.flagCounts[id]||0) + 1;
+    toast('Thanks — flagged for the community to verify. This keeps Kaki Jalan accurate.');
+  }
+  render();
+}
+
+function linkButton(p){
+  if(p.link){
+    return `<button class="link-btn" onclick="window.open('${p.link}','_blank')">Official site ↗</button>`;
+  }
+  return `<button class="link-btn" onclick="window.open('https://www.google.com/search?q=${encodeURIComponent(p.name+' '+p.area)}','_blank')">Search ↗</button>`;
+}
+
+function toggleSave(id){
+  const cap = isGuest() ? CAPS.guest.saves : Infinity;
+  if(state.savedPlaces.includes(id)){
+    state.savedPlaces = state.savedPlaces.filter(x=>x!==id);
+  } else {
+    if(state.savedPlaces.length >= cap){ capToast('save'); return; }
+    state.savedPlaces.push(id);
+  }
+  render();
+}
+
+function capToast(kind){
+  if(kind==='save') toast(`Guest limit reached (${CAPS.guest.saves} spots). Upgrade to save unlimited places.`);
+  if(kind==='connect') toast(`Guest limit reached (${CAPS.guest.connections} connections). Upgrade to connect with more people.`);
+  if(kind==='photo') toast(`Photo uploads are a User feature. Upgrade to add photos to your diary.`);
+  if(kind==='avatar') toast(`Profile pictures are a User feature. Upgrade to personalize your avatar.`);
+  if(kind==='comment') toast(`Guests can only reply within their ${CAPS.guest.connections} connections.`);
+  if(kind==='customize') toast(`Design style & wallpaper are User-only. Upgrade to fully restyle your profile.`);
+}
+
+function renderMap(){
+  const savedAll = PLACES.filter(p=>state.savedPlaces.includes(p.id));
+  const savedList = savedAll.filter(p=> state.mapFilter==='all' || p.kind===state.mapFilter);
+  const positions = [[20,30],[60,20],[35,60],[70,55],[50,75]];
+  let pins = savedList.map((p,i)=>{
+    const idx = savedAll.indexOf(p);
+    const pos = positions[idx % positions.length];
+    const color = p.kind==='food' ? 'var(--chili)' : 'var(--leaf)';
+    return `<div class="pin" style="left:${pos[0]}%; top:${pos[1]}%; background:${color};" title="${p.name}"></div>`;
+  }).join('');
+  return `
+    <div class="section-eyebrow">Realtime</div><div class="section-title">Map</div>
+    <div class="kind-filter">
+      <button class="${state.mapFilter==='all'?'active':''}" onclick="setMapFilter('all')">All</button>
+      <button class="${state.mapFilter==='food'?'active':''}" onclick="setMapFilter('food')">🍜 Food</button>
+      <button class="${state.mapFilter==='place'?'active':''}" onclick="setMapFilter('place')">📍 Places</button>
+    </div>
+    <div class="map-canvas">${pins}<div class="map-caption">${savedList.length} spot(s) pinned</div></div>
+    ${isGuest() ? `<div class="cap-meter"><div class="cap-meter-row"><span>Saved on map</span><span>${state.savedPlaces.length} / ${CAPS.guest.saves}</span></div><div class="cap-track"><div class="cap-fill" style="width:${Math.min(100,(state.savedPlaces.length/CAPS.guest.saves)*100)}%"></div></div></div>` : ''}
+    <p style="font-size:12px;color:#8a7a67;line-height:1.5;">Tap a saved place in Discover to pin it here. ${isGuest() ? 'Guests get 8 pins — Users get unlimited.' : 'Unlimited pins as a User.'} Chili-red pins are food, leaf-green pins are places.</p>
+  `;
+}
+
+function setMapFilter(f){
+  state.mapFilter = f;
+  render();
+}
+
+function renderDiary(){
+  let html = `<div class="section-eyebrow">Your visits</div><div class="section-title">Diary</div>`;
+  if(isGuest()){
+    html += `<div class="field-locked">🔒 Photo uploads are User-only. Guests can still write diary entries &amp; rate places.</div>`;
+  }
+  html += `
+    <div class="place-card">
+      <div class="place-name" style="font-size:14px;margin-bottom:8px;">New entry</div>
+      <div class="tag-row" style="margin-bottom:10px;">
+        <span class="tag">Food ★★★★☆</span><span class="tag">Service ★★★★★</span><span class="tag">Place ★★★★☆</span>
+      </div>
+      ${isGuest()
+        ? `<button class="btn btn-locked" onclick="capToast('photo')">📷 Add photo (User only)</button>`
+        : `<button class="btn btn-primary">📷 Add photo</button>`
+      }
+    </div>`;
+  if(state.savedPlaces.length===0){
+    html += `<div class="empty-note">No diary entries yet — save a place and log your first visit.</div>`;
+  } else {
+    state.savedPlaces.forEach(id=>{
+      const p = PLACES.find(x=>x.id===id);
+      if(!p) return;
+      html += `
+        <div class="place-card">
+          <div class="place-top">
+            <div><div class="place-name">${p.name}</div><div class="place-meta">Visited · ${p.area}</div></div>
+            <div class="stars">${'★'.repeat(Math.round(p.rating))}</div>
+          </div>
+        </div>`;
+    });
+  }
+  return html;
+}
+
+function renderPeople(){
+  const cap = isGuest() ? CAPS.guest.connections : Infinity;
+  const used = state.connections.length;
+  let html = `<div class="section-eyebrow">Your circle</div><div class="section-title">People</div>`;
+  if(isGuest()){
+    const pct = Math.min(100,(used/cap)*100);
+    html += `
+      <div class="cap-meter">
+        <div class="cap-meter-row"><span>Connections</span><span>${used} / ${cap}</span></div>
+        <div class="cap-track"><div class="cap-fill ${used>=cap?'full':''}" style="width:${pct}%"></div></div>
+      </div>`;
+  }
+  PEOPLE.forEach(p=>{
+    const connected = state.connections.includes(p.id);
+    const blocked = state.blocked.includes(p.id);
+    let actionBtn;
+    if(blocked){
+      actionBtn = `<button class="icon-btn" onclick="toggleBlock('${p.id}')" title="Unblock">🚫</button>`;
+    } else if(connected){
+      actionBtn = `<button class="icon-btn" onclick="toggleConnect('${p.id}')" title="Remove">✓</button>`;
+    } else if(isGuest() && used>=cap){
+      actionBtn = `<button class="icon-btn" onclick="capToast('connect')" title="Locked">🔒</button>`;
+    } else {
+      actionBtn = `<button class="icon-btn" onclick="toggleConnect('${p.id}')" title="Add">＋</button>`;
+    }
+    html += `
+      <div class="person-row">
+        <div class="person-avatar" style="background:${p.color}">${p.name[0]}</div>
+        <div class="person-info">
+          <div class="person-name">${p.name}</div>
+          <div class="person-badge">${p.badge} · ${p.visits} visits</div>
+        </div>
+        <div class="person-actions">
+          ${actionBtn}
+          ${!blocked ? `<button class="icon-btn" onclick="toggleBlock('${p.id}')" title="Block">⛔</button>` : ''}
+        </div>
+      </div>`;
+  });
+  return html;
+}
+
+function toggleConnect(id){
+  const cap = isGuest() ? CAPS.guest.connections : Infinity;
+  if(state.connections.includes(id)){
+    state.connections = state.connections.filter(x=>x!==id);
+  } else {
+    if(state.connections.length >= cap){ capToast('connect'); return; }
+    state.connections.push(id);
+  }
+  render();
+}
+
+function toggleBlock(id){
+  if(state.blocked.includes(id)){
+    state.blocked = state.blocked.filter(x=>x!==id);
+    toast('Unblocked.');
+  } else {
+    state.blocked.push(id);
+    state.connections = state.connections.filter(x=>x!==id);
+    toast('Blocked. They will no longer appear in your circle.');
+  }
+  render();
+}
+
+function renderMe(){
+  const stampDefs = [
+    {ic:'🧭', txt:'Explorer', on:true},
+    {ic:'🍜', txt:'Foodie', on:true},
+    {ic:'🌊', txt:'Coast Runner', on: !isGuest()},
+    {ic:'🏛️', txt:'Heritage', on: !isGuest()},
+  ];
+  let html = `<div class="section-eyebrow">Your profile</div><div class="section-title">Me</div>`;
+
+  html += `
+    <div class="profile-head">
+      <div class="avatar ${isGuest()?'locked':''}">
+        ${isGuest() ? '?' : (state.profileName ? state.profileName[0].toUpperCase() : 'H')}
+        <div class="avatar-edit" onclick="${isGuest() ? "capToast('avatar')" : "toast('Photo picker would open here.')"}">${isGuest() ? '🔒' : '✎'}</div>
+      </div>
+      <div>
+        <div class="profile-name">${isGuest() ? 'Guest Explorer' : (state.profileName || 'Harris')}</div>
+        <span class="profile-tier-badge ${isGuest()?'badge-guest':'badge-user'}">${isGuest() ? 'Guest' : 'User · RM3/mo'}</span>
+      </div>
+    </div>`;
+
+  html += `
+    <div class="stat-row">
+      <div class="stat-box"><div class="stat-num">${state.savedPlaces.length}</div><div class="stat-label">Saved</div></div>
+      <div class="stat-box"><div class="stat-num">${state.connections.length}</div><div class="stat-label">Circle</div></div>
+      <div class="stat-box"><div class="stat-num">${isGuest() ? '—' : '3'}</div><div class="stat-label">Trails</div></div>
+    </div>`;
+
+  html += `<div class="section-eyebrow" style="margin-top:4px;">Stamp collection</div>
+    <div class="stamp-wrap">
+      ${stampDefs.map(s=>`
+        <div class="stamp ${s.on?'':'dim'}" title="${s.on?s.txt:'Locked — User feature'}">
+          <div class="stamp-ic">${s.on ? s.ic : '🔒'}</div>
+          <div class="stamp-txt">${s.txt}</div>
+        </div>`).join('')}
+    </div>`;
+
+  html += `<div class="section-eyebrow">Theme accent</div>
+    <div class="hue-slider-wrap">
+      <input type="range" min="0" max="400" value="${state.accentHue}" class="hue-slider" id="accentHueSlider" oninput="onAccentHueInput(this.value)" onchange="render()">
+      <div class="hue-preview-row">
+        <div class="hue-preview-swatch" id="accentPreviewSwatch" style="background:${hueValueToColor(state.accentHue,68,54)}"></div>
+        <span class="hue-preview-label">Drag to pick your accent colour</span>
+      </div>
+    </div>
+    <p style="font-size:11px;color:#8a7a67;margin-bottom:16px;">${isGuest() ? 'Guests can change accent colour only.' : 'Accent colour applies across buttons, pins &amp; highlights.'}</p>`;
+
+  html += `<div class="section-eyebrow">Font colour</div>`;
+  if(isGuest()){
+    html += `<div class="field-locked" style="margin-bottom:16px;">🔒 Custom font colour is a User-only feature.</div>`;
+  } else {
+    html += `
+      <div class="hue-slider-wrap">
+        <input type="range" min="0" max="400" value="${state.fontHue}" class="hue-slider" id="fontHueSlider" oninput="onFontHueInput(this.value)" onchange="render()">
+        <div class="hue-preview-row">
+          <div class="hue-preview-swatch" id="fontPreviewSwatch" style="background:${hueValueToColor(state.fontHue,42,26)}"></div>
+          <span class="hue-preview-label">Drag to pick your text colour</span>
+        </div>
+      </div>
+      <p style="font-size:11px;color:#8a7a67;margin-bottom:16px;">Changes the main text colour used across the app.</p>`;
+  }
+
+  html += `<div class="section-eyebrow">Edge style</div>`;
+  if(isGuest()){
+    html += `<div class="field-locked" style="margin-bottom:16px;">🔒 Edge style (Sharp / Half Curve / Curved) is a User-only feature.</div>`;
+  } else {
+    html += `
+      <div class="style-swatch-row">
+        ${EDGE_STYLES.map(s=>`<div class="style-swatch ${state.edgeStyle===s.id?'selected':''}" onclick="setEdgeStyle('${s.id}')">${s.label}</div>`).join('')}
+      </div>
+      <p style="font-size:11px;color:#8a7a67;margin-bottom:16px;">Changes how sharp or rounded every card, button &amp; chip looks.</p>`;
+  }
+
+  html += `<div class="section-eyebrow">App background</div>`;
+  if(isGuest()){
+    html += `<div class="field-locked" style="margin-bottom:16px;">🔒 Custom app backgrounds are a User-only feature.</div>`;
+  } else {
+    const customWallpaper = state.wallpaper === 'custom' && state.customWallpaperUrl;
+    const gradients = WALLPAPERS.filter(w=>w.group==='gradient');
+
+    const swatchHtml = (w) => `<div class="wallpaper-swatch ${state.wallpaper===w.id?'selected':''}" style="background:${w.css}" onclick="setWallpaper('${w.id}')"></div>`;
+    const bgLightness = state.bgLightMode === 'dark' ? 22 : 88;
+
+    html += `
+      <p class="sub-label">Gradients</p>
+      <div class="wallpaper-row">
+        <div class="wallpaper-swatch reset-swatch ${state.wallpaper==='none'?'selected':''}" onclick="setWallpaper('none')" title="Default">↺</div>
+        ${gradients.map(swatchHtml).join('')}
+      </div>
+
+      <p class="sub-label">Solid colour</p>
+      <div class="style-swatch-row">
+        <div class="style-swatch ${state.bgLightMode==='light'?'selected':''}" onclick="setBgLightMode('light')">Light wash</div>
+        <div class="style-swatch ${state.bgLightMode==='dark'?'selected':''}" onclick="setBgLightMode('dark')">Dark wash</div>
+      </div>
+      <div class="hue-slider-wrap">
+        <input type="range" min="0" max="400" value="${state.bgHue}" class="hue-slider" id="bgHueSlider" oninput="onBgHueInput(this.value)" onchange="render()">
+        <div class="hue-preview-row">
+          <div class="hue-preview-swatch" id="bgPreviewSwatch" style="background:${hueValueToColor(state.bgHue,55,bgLightness)}"></div>
+          <span class="hue-preview-label">Drag to wash the background in a solid colour</span>
+        </div>
+      </div>
+
+      <p class="sub-label">Your own photo</p>
+      <div class="wallpaper-row">
+        <div class="wallpaper-swatch upload-swatch ${customWallpaper?'selected':''}" onclick="document.getElementById('wallpaperFileInput').click()">📷</div>
+      </div>
+      <input type="file" id="wallpaperFileInput" accept="image/*" style="display:none" onchange="handleWallpaperUpload(event)">
+      <p style="font-size:11px;color:#8a7a67;margin-bottom:16px;">Changes the background behind every screen.</p>`;
+  }
+
+  if(isGuest()){
+    html += `
+      <div class="field-locked">🔒 Display name, profile photo &amp; bio are User-only features.</div>
+      <div class="place-card" style="text-align:center;">
+        <div class="place-name" style="font-size:15px;margin-bottom:6px;">See what a User profile looks like</div>
+        <p style="font-size:12px;color:#8a7a67;margin-bottom:12px;">Custom name, photo, bio, pinned places &amp; full stamp collection.</p>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="setTier('user')">Preview User profile</button>
+      </div>`;
+  } else {
+    html += `
+      <div class="section-eyebrow">Display name</div>
+      <input id="nameInput" value="${state.profileName}" placeholder="Enter your name" oninput="state.profileName=this.value" style="width:100%;padding:10px 12px;border-radius:var(--r-sm);border:1px solid #e0d6bf;font-family:inherit;font-size:13px;margin-bottom:14px;">
+    `;
+  }
+
+  return html;
+}
+
+function onAccentHueInput(val){
+  state.accentHue = parseInt(val, 10);
+  applyTheme();
+  const sw = document.getElementById('accentPreviewSwatch');
+  if(sw) sw.style.background = hueValueToColor(state.accentHue, 68, 54);
+}
+
+function onFontHueInput(val){
+  if(isGuest()) return;
+  state.fontHue = parseInt(val, 10);
+  const shell = document.getElementById('phoneShell');
+  const color = hueValueToColor(state.fontHue, 42, 26);
+  shell.style.setProperty('--coffee', color);
+  const sw = document.getElementById('fontPreviewSwatch');
+  if(sw) sw.style.background = color;
+}
+
+function onBgHueInput(val){
+  if(isGuest()) return;
+  state.bgHue = parseInt(val, 10);
+  state.wallpaper = 'solid';
+  applyWallpaper(document.getElementById('phoneShell'));
+  const lightness = state.bgLightMode === 'dark' ? 22 : 88;
+  const sw = document.getElementById('bgPreviewSwatch');
+  if(sw) sw.style.background = hueValueToColor(state.bgHue, 55, lightness);
+}
+
+function setBgLightMode(mode){
+  if(isGuest()){ capToast('customize'); return; }
+  state.bgLightMode = mode;
+  state.wallpaper = 'solid';
+  render();
+}
+
+function setEdgeStyle(id){
+  if(isGuest()){ capToast('customize'); return; }
+  state.edgeStyle = id;
+  render();
+}
+
+function setWallpaper(id){
+  if(isGuest()){ capToast('customize'); return; }
+  state.wallpaper = id;
+  render();
+}
+
+function handleWallpaperUpload(event){
+  if(isGuest()){ capToast('customize'); return; }
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const img = new Image();
+    img.onload = function(){
+      const canvas = document.createElement('canvas');
+      const targetW = 600, targetH = 220;
+      canvas.width = targetW; canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+      const scale = Math.max(targetW/img.width, targetH/img.height);
+      const w = img.width*scale, h = img.height*scale;
+      ctx.drawImage(img, (targetW-w)/2, (targetH-h)/2, w, h);
+      state.customWallpaperUrl = canvas.toDataURL('image/jpeg', 0.85);
+      state.wallpaper = 'custom';
+      render();
+      toast('Wallpaper photo uploaded and applied.');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ============ INIT ============ */
+setTier('guest');
+setTab('discover');
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(()=>{ /* fine on plain file:// or no host */ });
+  });
+}
+</script>
+</body>
+</html>
