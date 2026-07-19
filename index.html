@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Kaki Jalan</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1E2B26">
@@ -61,6 +61,7 @@
   /* ===== Design style presets (color) ===== */
 
   /* ===== Phone shell ===== */
+  /* Desktop/preview: decorative mockup frame, floating and rounded */
   .phone{
     width:400px;
     max-width:100%;
@@ -73,6 +74,30 @@
     display:flex;
     flex-direction:column;
     height:820px;
+  }
+
+  /* Real mobile device: fill the entire viewport, no mockup chrome */
+  @media (max-width: 600px){
+    body{
+      padding:0;
+      align-items:stretch;
+      background:var(--ink);
+    }
+    .phone{
+      width:100vw;
+      max-width:100vw;
+      height:100dvh;
+      max-height:100dvh;
+      border:none;
+      border-radius:0;
+      box-shadow:none;
+    }
+    .topbar{
+      padding-top:calc(16px + env(safe-area-inset-top));
+    }
+    .bottomnav{
+      padding-bottom:calc(14px + env(safe-area-inset-bottom));
+    }
   }
 
   /* ===== Top bar ===== */
