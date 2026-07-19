@@ -805,6 +805,85 @@
     position:relative;
     background:var(--ink);
   }
+
+  /* Full-bleed map mode: map fills the entire tab, controls float on top */
+  .content.map-mode{
+    padding:0;
+    position:relative;
+  }
+  .map-page{
+    position:relative;
+    height:100%;
+    width:100%;
+  }
+  .map-page .leaflet-map-container{
+    height:100%;
+    max-height:none;
+    min-height:0;
+    border-radius:0;
+    margin-bottom:0;
+  }
+  .map-floating-filter{
+    position:absolute;
+    top:14px; left:14px; right:14px;
+    z-index:1000;
+    display:flex;
+    gap:6px;
+    background:rgba(243,236,220,0.92);
+    backdrop-filter:blur(4px);
+    border-radius:var(--r-md);
+    padding:4px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.25);
+  }
+  .map-floating-filter button{
+    flex:1;
+    border:none;
+    background:transparent;
+    padding:9px 8px;
+    border-radius:calc(var(--r-md) - 3px);
+    font-family:inherit;
+    font-weight:700;
+    font-size:12px;
+    color:var(--coffee);
+    opacity:0.55;
+    cursor:pointer;
+  }
+  .map-floating-filter button.active{
+    background:#fff;
+    opacity:1;
+    box-shadow:0 2px 6px rgba(59,42,30,0.15);
+  }
+  .map-floating-bottom{
+    position:absolute;
+    bottom:14px; left:14px; right:14px;
+    z-index:1000;
+    background:rgba(30,43,38,0.85);
+    backdrop-filter:blur(4px);
+    border-radius:var(--r-md);
+    padding:10px 12px;
+    color:#F3ECDC;
+    font-size:11px;
+    line-height:1.5;
+  }
+  .map-floating-bottom .legend-dot{
+    display:inline-block;
+    width:8px;height:8px;
+    border-radius:50%;
+    margin-right:4px;
+  }
+  .map-page .locate-btn{
+    top:auto;
+    bottom:80px;
+    right:14px;
+  }
+  .map-page .cap-meter{
+    position:absolute;
+    top:66px; left:14px; right:14px;
+    z-index:1000;
+    background:rgba(255,255,255,0.95);
+    backdrop-filter:blur(4px);
+    margin-bottom:0;
+  }
   .leaflet-map-container .leaflet-container{
     font-family:'Plus Jakarta Sans', sans-serif;
   }
@@ -1108,6 +1187,7 @@ function render(){
   applyFontColor(shell);
   applyWallpaper(shell);
   const c = document.getElementById('content');
+  c.classList.toggle('map-mode', state.tab==='map');
   if(state.tab==='discover') c.innerHTML = renderDiscover();
   if(state.tab==='map') c.innerHTML = renderMap();
   if(state.tab==='diary') c.innerHTML = renderDiary();
@@ -1425,29 +1505,33 @@ function renderMap(){
   const savedAll = PLACES.filter(p=>state.savedPlaces.includes(p.id));
   const savedList = savedAll.filter(p=> state.mapFilter==='all' || p.kind===state.mapFilter);
 
-  let html = `<div class="section-eyebrow">Realtime</div><div class="section-title">Map</div>`;
-  html += `
-    <div class="kind-filter">
-      <button class="${state.mapFilter==='all'?'active':''}" onclick="setMapFilter('all')">All</button>
-      <button class="${state.mapFilter==='food'?'active':''}" onclick="setMapFilter('food')">🍜 Food</button>
-      <button class="${state.mapFilter==='place'?'active':''}" onclick="setMapFilter('place')">📍 Places</button>
-    </div>
-    <div class="leaflet-map-container">
-      <div id="leafletMap" style="width:100%;height:100%;"></div>
-      <button class="locate-btn" onclick="onLocateMeClick()" title="Find my location">📍</button>
-    </div>`;
-
-  if(isGuest()){
-    html += `<div class="cap-meter"><div class="cap-meter-row"><span>Saved on map</span><span>${state.savedPlaces.length} / ${CAPS.guest.saves}</span></div><div class="cap-track"><div class="cap-fill" style="width:${Math.min(100,(state.savedPlaces.length/CAPS.guest.saves)*100)}%"></div></div></div>`;
-  }
-
   let locNote = '';
-  if(state.locationStatus === 'denied') locNote = 'Location access denied — tap 📍 to try again, or enable it in your browser settings.';
-  else if(state.locationStatus === 'unavailable') locNote = 'Location isn\'t available on this device/browser.';
-  else if(state.locationStatus === 'granted') locNote = 'Showing your real location. Tap any pin for directions.';
-  else locNote = 'Tap 📍 to find your real location on the map.';
+  if(state.locationStatus === 'denied') locNote = 'Location denied — tap 📍 to retry.';
+  else if(state.locationStatus === 'unavailable') locNote = 'Location unavailable on this device.';
+  else if(state.locationStatus === 'granted') locNote = 'Tap any pin for directions.';
+  else locNote = 'Tap 📍 to find your real location.';
 
-  html += `<p style="font-size:12px;color:#8a7a67;line-height:1.5;">${locNote} ${isGuest() ? 'Guests get 8 pins — Users get unlimited.' : 'Unlimited pins as a User.'} Chili-red pins are food, leaf-green pins are places.</p>`;
+  let html = `
+    <div class="map-page">
+      <div class="leaflet-map-container">
+        <div id="leafletMap" style="width:100%;height:100%;"></div>
+      </div>
+
+      <div class="map-floating-filter">
+        <button class="${state.mapFilter==='all'?'active':''}" onclick="setMapFilter('all')">All</button>
+        <button class="${state.mapFilter==='food'?'active':''}" onclick="setMapFilter('food')">🍜 Food</button>
+        <button class="${state.mapFilter==='place'?'active':''}" onclick="setMapFilter('place')">📍 Places</button>
+      </div>
+
+      ${isGuest() ? `<div class="cap-meter"><div class="cap-meter-row"><span>Saved on map</span><span>${state.savedPlaces.length} / ${CAPS.guest.saves}</span></div><div class="cap-track"><div class="cap-fill" style="width:${Math.min(100,(state.savedPlaces.length/CAPS.guest.saves)*100)}%"></div></div></div>` : ''}
+
+      <button class="locate-btn" onclick="onLocateMeClick()" title="Find my location">📍</button>
+
+      <div class="map-floating-bottom">
+        <span class="legend-dot" style="background:#BE4B33"></span>Food &nbsp;
+        <span class="legend-dot" style="background:#55735F"></span>Place &nbsp;·&nbsp; ${locNote}
+      </div>
+    </div>`;
 
   // Defer Leaflet init until after this HTML is actually in the DOM
   setTimeout(()=> initLeafletMap(savedList), 0);
