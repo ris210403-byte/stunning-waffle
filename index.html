@@ -1081,6 +1081,7 @@ const state = {
   locationStatus: 'idle', // 'idle' | 'locating' | 'granted' | 'denied' | 'unavailable'
   nearbyMode: false,      // Discover tab: browsing by distance instead of search text
   mapView: null,          // {center:[lat,lng], zoom} — preserves pan/zoom across re-renders
+  hasAttemptedAutoLocate: false, // ensures we only auto-request location once per session
 };
 
 let leafletMap = null;
@@ -1534,8 +1535,17 @@ function renderMap(){
   const savedAll = PLACES.filter(p=>state.savedPlaces.includes(p.id));
   const savedList = savedAll.filter(p=> state.mapFilter==='all' || p.kind===state.mapFilter);
 
+  if(!state.userLocation && !state.hasAttemptedAutoLocate){
+    state.hasAttemptedAutoLocate = true;
+    requestUserLocation(()=>{
+      state.mapView = null; // let it recenter on the freshly-found location
+      render();
+    });
+  }
+
   let locNote = '';
-  if(state.locationStatus === 'denied') locNote = 'Location denied — tap 📍 to retry.';
+  if(state.locationStatus === 'locating') locNote = 'Finding your location…';
+  else if(state.locationStatus === 'denied') locNote = 'Location denied — tap 📍 to retry.';
   else if(state.locationStatus === 'unavailable') locNote = 'Location unavailable on this device.';
   else if(state.locationStatus === 'granted') locNote = 'Tap any pin for directions.';
   else locNote = 'Tap 📍 to find your real location.';
