@@ -138,6 +138,90 @@
     opacity:0.75;
   }
 
+  /* ===== Onboarding carousel ===== */
+  .onboarding-screen{
+    position:fixed;
+    inset:0;
+    background:#ffffff;
+    z-index:9500;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:56px 28px calc(28px + env(safe-area-inset-bottom));
+    transition:opacity 0.35s ease;
+  }
+  .onboarding-screen.hide{
+    opacity:0;
+    pointer-events:none;
+  }
+  .onboarding-skip{
+    position:absolute;
+    top:calc(20px + env(safe-area-inset-top));
+    right:20px;
+    background:none;
+    border:none;
+    color:#9CA3AF;
+    font-family:inherit;
+    font-weight:700;
+    font-size:13px;
+    cursor:pointer;
+    z-index:1;
+  }
+  .onboarding-slide-area{
+    flex:1;
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    max-width:340px;
+  }
+  .onboarding-icon{
+    font-size:72px;
+    margin-bottom:28px;
+  }
+  .onboarding-headline{
+    font-weight:800;
+    font-size:20px;
+    color:var(--coffee);
+    margin-bottom:12px;
+  }
+  .onboarding-body{
+    font-size:14px;
+    color:#6B7280;
+    line-height:1.6;
+  }
+  .onboarding-dots{
+    display:flex;
+    gap:7px;
+    margin-bottom:22px;
+  }
+  .onboarding-dot{
+    width:8px;height:8px;
+    border-radius:50%;
+    background:#E0E0E0;
+    transition:all .2s ease;
+  }
+  .onboarding-dot.active{
+    background:var(--accent);
+    width:22px;
+    border-radius:5px;
+  }
+  .onboarding-next{
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:30px;
+    padding:15px;
+    font-family:inherit;
+    font-weight:700;
+    font-size:15px;
+    cursor:pointer;
+    width:100%;
+    max-width:340px;
+  }
+
   /* ===== Edge style presets (shape) ===== */
   .phone[data-edge="sharp"]{
     --r-lg:2px;
@@ -204,6 +288,13 @@
     padding:16px 18px 14px;
     position:relative;
     border-bottom:1px solid #EEEEEE;
+    transition:padding .2s ease;
+  }
+  .topbar.topbar-compact{
+    padding:10px 18px 8px;
+  }
+  .topbar.topbar-compact .demo-label{
+    display:none;
   }
   .brand-row{
     display:flex;
@@ -1001,9 +1092,40 @@
     box-shadow:0 2px 8px rgba(0,0,0,0.25) !important;
     border:none !important;
   }
+  .map-floating-sort{
+    position:absolute;
+    top:64px; left:14px; right:14px;
+    z-index:1000;
+    display:flex;
+    gap:5px;
+    overflow-x:auto;
+    background:rgba(243,236,220,0.92);
+    backdrop-filter:blur(4px);
+    border-radius:var(--r-md);
+    padding:6px 8px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.25);
+  }
+  .map-floating-sort button{
+    flex-shrink:0;
+    border:none;
+    background:transparent;
+    padding:6px 10px;
+    border-radius:calc(var(--r-md) - 3px);
+    font-family:inherit;
+    font-weight:700;
+    font-size:11px;
+    color:var(--coffee);
+    opacity:0.6;
+    cursor:pointer;
+  }
+  .map-floating-sort button.active{
+    background:#fff;
+    opacity:1;
+    box-shadow:0 2px 6px rgba(59,42,30,0.15);
+  }
   .map-page .cap-meter{
     position:absolute;
-    top:66px; left:14px; right:14px;
+    top:118px; left:14px; right:14px;
     z-index:1000;
     background:rgba(255,255,255,0.95);
     backdrop-filter:blur(4px);
@@ -1128,19 +1250,23 @@
   </div>
 </div>
 
+<div class="onboarding-screen" id="onboardingScreen">
+  <button class="onboarding-skip" onclick="finishOnboarding()">Skip</button>
+  <div class="onboarding-slide-area" id="onboardingSlideArea"></div>
+  <div class="onboarding-dots" id="onboardingDots"></div>
+  <button class="onboarding-next" id="onboardingNextBtn" onclick="onboardingNext()">Next</button>
+</div>
+
 <div class="phone" id="phoneShell">
-  <div class="topbar">
+  <div class="topbar" id="topbar">
     <div class="brand-row">
-      <div class="brand">
-        <div class="brand-mark"><img src="icon-192.png" alt="biteScout logo"></div>
-        <div class="brand-name">biteScout</div>
-      </div>
+      <div id="brandArea"></div>
       <div class="tier-toggle">
         <button id="btnGuest" onclick="setTier('guest')">Guest</button>
         <button id="btnUser" onclick="setTier('user')">User</button>
       </div>
     </div>
-    <div class="demo-label">Role switch — demo only, for testing tier gating</div>
+    <div class="demo-label" id="demoLabel">Role switch — demo only, for testing tier gating</div>
     <div id="upgradeBanner"></div>
   </div>
 
@@ -1199,6 +1325,7 @@ const state = {
   wallpaper: 'none',       // full app background — User only
   customWallpaperUrl: null,
   profileName: '',
+  guestDisplayId: 'Guest' + Math.floor(1000 + Math.random() * 9000),
   savedPlaces: ['zoo-negara', 'jonker-market'],
   connections: ['aiman','siti'],
   blocked: [],
@@ -1212,6 +1339,13 @@ const state = {
   focusPlaceId: null, // set when jumping from Diary to a specific place on the map
   peopleSearchOpen: false,
   peopleSearchQuery: '',
+  peopleFilter: 'all',
+  diaryFilter: 'all',
+  discoverFiltersOpen: false,
+  minRating: 0,
+  sortBy: 'recommended',
+  mapSort: 'recommended',
+  onboardingIndex: 0,
 };
 
 let leafletMap = null;
@@ -1279,10 +1413,10 @@ const EXTERNAL_RESULTS = [
 ];
 
 const PEOPLE = [
-  {id:'aiman', name:'Aiman', badge:'Local Legend', color:'#BE4B33', visits:212, lat:2.1935, lng:102.2485},
-  {id:'siti', name:'Siti', badge:'Trusted Local', color:'#55735F', visits:88, lat:2.2010, lng:102.2410},
-  {id:'chefwan', name:'ChefWan', badge:'Verified Influencer', color:'#E3A23C', visits:340, lat:2.1880, lng:102.2520},
-  {id:'huda', name:'Huda', badge:'Regular', color:'#3E6E8E', visits:14, lat:2.2150, lng:102.1980},
+  {id:'aiman', name:'Aiman', badge:'Local Legend', type:'friend', color:'#BE4B33', visits:212, lat:2.1935, lng:102.2485},
+  {id:'siti', name:'Siti', badge:'Trusted Local', type:'user', color:'#55735F', visits:88, lat:2.2010, lng:102.2410},
+  {id:'chefwan', name:'ChefWan', badge:'Verified Influencer', type:'influencer', color:'#E3A23C', visits:340, lat:2.1880, lng:102.2520},
+  {id:'huda', name:'Huda', badge:'Regular', type:'friend', color:'#3E6E8E', visits:14, lat:2.2150, lng:102.1980},
 ];
 
 /* ============ HELPERS ============ */
@@ -1338,6 +1472,23 @@ function renderBanner(){
     </div>`;
 }
 
+function renderBrandArea(){
+  const el = document.getElementById('brandArea');
+  const topbar = document.getElementById('topbar');
+  if(state.tab !== 'discover'){
+    el.innerHTML = '';
+    topbar.classList.add('topbar-compact');
+    return;
+  }
+  topbar.classList.remove('topbar-compact');
+  const displayName = isGuest() ? state.guestDisplayId : (state.profileName || 'Harris');
+  el.innerHTML = `
+    <div class="brand">
+      <div class="brand-mark"><img src="icon-192.png" alt="biteScout logo"></div>
+      <div class="brand-name">${displayName}</div>
+    </div>`;
+}
+
 /* ============ RENDER ============ */
 function render(){
   applyTheme();
@@ -1346,6 +1497,7 @@ function render(){
   shell.setAttribute('data-edge', effectiveEdge);
   applyFontColor(shell);
   applyWallpaper(shell);
+  renderBrandArea();
   const c = document.getElementById('content');
   c.classList.toggle('map-mode', state.tab==='map');
   if(state.tab==='discover') c.innerHTML = renderDiscover();
@@ -1415,6 +1567,28 @@ function renderDiscover(){
 
   html += `<button class="nearby-toggle ${state.nearbyMode?'active':''}" onclick="toggleNearbyMode()">📍 ${state.nearbyMode ? 'Showing nearest first' : 'Search around me'}</button>`;
 
+  html += `<button class="people-add-toggle" style="background:var(--paper-dim);color:var(--coffee);" onclick="toggleDiscoverFilters()">⚙ ${state.discoverFiltersOpen ? 'Hide filters' : 'Rating & sort'}</button>`;
+
+  if(state.discoverFiltersOpen){
+    html += `
+      <p class="sub-label">Minimum rating</p>
+      <div class="kind-filter" style="margin-bottom:10px;">
+        <button class="${state.minRating===0?'active':''}" onclick="setMinRating(0)">All</button>
+        <button class="${state.minRating===4?'active':''}" onclick="setMinRating(4)">4★+</button>
+        <button class="${state.minRating===4.5?'active':''}" onclick="setMinRating(4.5)">4.5★+</button>
+      </div>
+      <div class="kind-filter" style="margin-bottom:10px;">
+        <button class="${state.minRating===3?'active':''}" onclick="setMinRating(3)">3★+</button>
+        <button class="${state.minRating===3.5?'active':''}" onclick="setMinRating(3.5)">3.5★+</button>
+        <button class="${state.minRating===5?'active':''}" onclick="setMinRating(5)">5★</button>
+      </div>
+      <p class="sub-label">Sort by</p>
+      <div class="kind-filter" style="margin-bottom:14px;">
+        <button class="${state.sortBy==='recommended'?'active':''}" onclick="setSortBy('recommended')">Recommended</button>
+        <button class="${state.sortBy==='rating'?'active':''}" onclick="setSortBy('rating')">Top Rated</button>
+      </div>`;
+  }
+
   if(isGuest()){
     const pct = Math.min(100, (used/cap)*100);
     html += `
@@ -1424,17 +1598,19 @@ function renderDiscover(){
       </div>`;
   }
 
-  let filtered = PLACES.filter(p=> state.discoverFilter==='all' || p.kind===state.discoverFilter);
+  let filtered = PLACES.filter(p=> (state.discoverFilter==='all' || p.kind===state.discoverFilter) && p.rating >= state.minRating);
 
   if(state.nearbyMode && state.userLocation){
     filtered = filtered.slice().sort((a,b)=>
       distanceKm(state.userLocation.lat, state.userLocation.lng, a.lat, a.lng) -
       distanceKm(state.userLocation.lat, state.userLocation.lng, b.lat, b.lng)
     );
+  } else if(state.sortBy === 'rating'){
+    filtered = filtered.slice().sort((a,b)=> b.rating - a.rating);
   }
 
   if(filtered.length===0){
-    html += `<div class="empty-note">No ${state.discoverFilter} spots yet.</div>`;
+    html += `<div class="empty-note">No ${state.discoverFilter==='all'?'':state.discoverFilter+' '}spots match these filters.</div>`;
   }
 
   filtered.forEach(p=> html += placeCardHtml(p));
@@ -1663,7 +1839,9 @@ function capToast(kind){
 
 function renderMap(){
   const savedAll = PLACES.filter(p=>state.savedPlaces.includes(p.id));
-  const savedList = savedAll.filter(p=> state.mapFilter==='all' || p.kind===state.mapFilter);
+  const savedList = savedAll
+    .filter(p=> state.mapFilter==='all' || p.kind===state.mapFilter)
+    .filter(p=> state.mapSort==='recommended' || p.rating >= state.mapSort);
 
   if(!state.userLocation && !state.hasAttemptedAutoLocate){
     state.hasAttemptedAutoLocate = true;
@@ -1680,6 +1858,15 @@ function renderMap(){
   else if(state.locationStatus === 'granted') locNote = 'Tap any pin for directions.';
   else locNote = 'Tap 📍 to find your real location.';
 
+  const sortOptions = [
+    {val:'recommended', label:'Recommended'},
+    {val:3, label:'3★+'},
+    {val:3.5, label:'3.5★+'},
+    {val:4, label:'4★+'},
+    {val:4.5, label:'4.5★+'},
+    {val:5, label:'5★'},
+  ];
+
   let html = `
     <div class="map-page">
       <div class="leaflet-map-container">
@@ -1690,6 +1877,10 @@ function renderMap(){
         <button class="${state.mapFilter==='all'?'active':''}" onclick="setMapFilter('all')">All</button>
         <button class="${state.mapFilter==='food'?'active':''}" onclick="setMapFilter('food')">🍜 Food</button>
         <button class="${state.mapFilter==='place'?'active':''}" onclick="setMapFilter('place')">📍 Places</button>
+      </div>
+
+      <div class="map-floating-sort">
+        ${sortOptions.map(o=>`<button class="${state.mapSort===o.val?'active':''}" onclick="setMapSort('${o.val}')">${o.label}</button>`).join('')}
       </div>
 
       ${isGuest() ? `<div class="cap-meter"><div class="cap-meter-row"><span>Saved on map</span><span>${state.savedPlaces.length} / ${CAPS.guest.saves}</span></div><div class="cap-track"><div class="cap-fill" style="width:${Math.min(100,(state.savedPlaces.length/CAPS.guest.saves)*100)}%"></div></div></div>` : ''}
@@ -1790,6 +1981,11 @@ function setMapFilter(f){
   render();
 }
 
+function setMapSort(val){
+  state.mapSort = (val === 'recommended') ? 'recommended' : parseFloat(val);
+  render();
+}
+
 function focusPlaceOnMap(placeId){
   const place = PLACES.find(p=>p.id===placeId);
   if(!place) return;
@@ -1805,6 +2001,12 @@ function renderDiary(){
     html += `<div class="field-locked">🔒 Photo uploads are User-only. Guests can still write diary entries &amp; rate places.</div>`;
   }
   html += `
+    <div class="kind-filter">
+      <button class="${state.diaryFilter==='all'?'active':''}" onclick="setDiaryFilter('all')">All</button>
+      <button class="${state.diaryFilter==='place'?'active':''}" onclick="setDiaryFilter('place')">📍 Places</button>
+      <button class="${state.diaryFilter==='food'?'active':''}" onclick="setDiaryFilter('food')">🍜 Bites</button>
+    </div>`;
+  html += `
     <div class="place-card">
       <div class="place-name" style="font-size:14px;margin-bottom:8px;">New entry</div>
       <div class="tag-row" style="margin-bottom:10px;">
@@ -1815,12 +2017,15 @@ function renderDiary(){
         : `<button class="btn btn-primary">📷 Add photo</button>`
       }
     </div>`;
-  if(state.savedPlaces.length===0){
-    html += `<div class="empty-note">No diary entries yet — save a place and log your first visit.</div>`;
+
+  const entries = state.savedPlaces
+    .map(id => PLACES.find(x=>x.id===id))
+    .filter(p => p && (state.diaryFilter==='all' || p.kind===state.diaryFilter));
+
+  if(entries.length===0){
+    html += `<div class="empty-note">No ${state.diaryFilter==='all' ? 'diary entries' : (state.diaryFilter==='place' ? 'places' : 'bites')} yet — save a place and log your first visit.</div>`;
   } else {
-    state.savedPlaces.forEach(id=>{
-      const p = PLACES.find(x=>x.id===id);
-      if(!p) return;
+    entries.forEach(p=>{
       html += `
         <div class="place-card diary-entry" onclick="focusPlaceOnMap('${p.id}')">
           <div class="place-top">
@@ -1832,6 +2037,26 @@ function renderDiary(){
     });
   }
   return html;
+}
+
+function setDiaryFilter(f){
+  state.diaryFilter = f;
+  render();
+}
+
+function toggleDiscoverFilters(){
+  state.discoverFiltersOpen = !state.discoverFiltersOpen;
+  render();
+}
+
+function setMinRating(r){
+  state.minRating = r;
+  render();
+}
+
+function setSortBy(s){
+  state.sortBy = s;
+  render();
 }
 
 function renderPeople(){
@@ -1862,27 +2087,32 @@ function renderPeople(){
     }
   }
 
-  if(isGuest()){
-    const pct = Math.min(100,(used/cap)*100);
-    html += `
-      <div class="cap-meter">
-        <div class="cap-meter-row"><span>Connections</span><span>${used} / ${cap}</span></div>
-        <div class="cap-track"><div class="cap-fill ${used>=cap?'full':''}" style="width:${pct}%"></div></div>
-      </div>`;
-  }
+  html += `
+    <div class="kind-filter" style="margin-top:2px;">
+      <button class="${state.peopleFilter==='all'?'active':''}" onclick="setPeopleFilter('all')">All</button>
+      <button class="${state.peopleFilter==='friend'?'active':''}" onclick="setPeopleFilter('friend')">Friends</button>
+      <button class="${state.peopleFilter==='user'?'active':''}" onclick="setPeopleFilter('user')">Users</button>
+      <button class="${state.peopleFilter==='influencer'?'active':''}" onclick="setPeopleFilter('influencer')">Influencer</button>
+    </div>`;
+
+  const filteredPeople = PEOPLE.filter(p => state.peopleFilter==='all' || p.type===state.peopleFilter);
 
   // Simulated "People Near You" using real device GPS + mock people locations.
   // Real proximity discovery across real users needs a backend — this shows the UX now.
   if(state.userLocation){
-    const nearby = PEOPLE
+    const nearby = filteredPeople
       .map(p=>({ ...p, dist: distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng) }))
       .sort((a,b)=>a.dist-b.dist);
     html += `<div class="section-eyebrow" style="margin-top:6px;">📍 People near you</div>`;
+    if(nearby.length===0) html += `<div class="empty-note">No one in this category yet.</div>`;
     nearby.forEach(p=> html += personRowHtml(p, cap, used, formatDistance(p.dist)));
     html += `<div class="section-eyebrow" style="margin-top:16px;">Everyone</div>`;
   }
 
-  PEOPLE.forEach(p=> html += personRowHtml(p, cap, used));
+  if(filteredPeople.length===0){
+    html += `<div class="empty-note">No one in this category yet.</div>`;
+  }
+  filteredPeople.forEach(p=> html += personRowHtml(p, cap, used));
   return html;
 }
 
@@ -1911,6 +2141,11 @@ function personRowHtml(p, cap, used, distLabel){
         ${!blocked ? `<button class="icon-btn" onclick="toggleBlock('${p.id}')" title="Block">⛔</button>` : ''}
       </div>
     </div>`;
+}
+
+function setPeopleFilter(f){
+  state.peopleFilter = f;
+  render();
 }
 
 function togglePeopleSearch(){
@@ -2075,6 +2310,78 @@ function handleWallpaperUpload(event){
   reader.readAsDataURL(file);
 }
 
+// DUMMY placeholder content — final copy to be written together (see chat).
+// Each slide: icon (emoji placeholder for a real illustration later), headline, body.
+const ONBOARDING_SLIDES = [
+  { icon:'🔍', headline:'[Dummy] Why biteScout Exists', body:'[Placeholder] Anonymous reviews can be faked. We believe recommendations should come from real visits by real people.' },
+  { icon:'✅', headline:'[Dummy] Trust, Verified', body:'[Placeholder] Every place here was added and vouched for by an actual person — not scraped from somewhere else.' },
+  { icon:'🍜', headline:'[Dummy] Food & Places', body:"[Placeholder] Discover great eats and interesting spots, kept accurate by the community flagging what's changed." },
+  { icon:'📓', headline:'[Dummy] Your Own Diary', body:"[Placeholder] Save what you love, log your visits, and build a record that's genuinely yours." },
+  { icon:'🎉', headline:'[Dummy] Ready to Explore?', body:"[Placeholder] Let's find your next favourite place." },
+];
+
+function renderOnboardingSlide(){
+  const area = document.getElementById('onboardingSlideArea');
+  const dotsEl = document.getElementById('onboardingDots');
+  const nextBtn = document.getElementById('onboardingNextBtn');
+  if(!area) return;
+
+  const i = state.onboardingIndex;
+  const slide = ONBOARDING_SLIDES[i];
+
+  area.innerHTML = `
+    <div class="onboarding-icon">${slide.icon}</div>
+    <div class="onboarding-headline">${slide.headline}</div>
+    <div class="onboarding-body">${slide.body}</div>`;
+
+  dotsEl.innerHTML = ONBOARDING_SLIDES.map((_, idx)=>
+    `<div class="onboarding-dot ${idx===i?'active':''}" onclick="goToOnboardingSlide(${idx})"></div>`
+  ).join('');
+
+  nextBtn.textContent = (i === ONBOARDING_SLIDES.length - 1) ? 'Get Started' : 'Next';
+}
+
+function onboardingNext(){
+  if(state.onboardingIndex < ONBOARDING_SLIDES.length - 1){
+    state.onboardingIndex++;
+    renderOnboardingSlide();
+  } else {
+    finishOnboarding();
+  }
+}
+
+function goToOnboardingSlide(idx){
+  state.onboardingIndex = idx;
+  renderOnboardingSlide();
+}
+
+function finishOnboarding(){
+  const onboarding = document.getElementById('onboardingScreen');
+  if(onboarding){
+    onboarding.classList.add('hide');
+    setTimeout(()=> onboarding.remove(), 400);
+  }
+}
+
+function setupOnboardingSwipe(){
+  const el = document.getElementById('onboardingScreen');
+  if(!el) return;
+  let startX = null;
+  el.addEventListener('touchstart', (e)=>{ startX = e.touches[0].clientX; }, {passive:true});
+  el.addEventListener('touchend', (e)=>{
+    if(startX === null) return;
+    const deltaX = e.changedTouches[0].clientX - startX;
+    if(Math.abs(deltaX) > 50){
+      if(deltaX < 0 && state.onboardingIndex < ONBOARDING_SLIDES.length - 1){
+        state.onboardingIndex++; renderOnboardingSlide();
+      } else if(deltaX > 0 && state.onboardingIndex > 0){
+        state.onboardingIndex--; renderOnboardingSlide();
+      }
+    }
+    startX = null;
+  }, {passive:true});
+}
+
 function chooseWelcomeAction(tier){
   // NOTE: no real backend/auth exists yet — Create Account and Sign In
   // both currently just set the demo tier to 'user' so the User experience
@@ -2090,6 +2397,8 @@ function chooseWelcomeAction(tier){
 /* ============ INIT ============ */
 setTier('guest');
 setTab('discover');
+renderOnboardingSlide();
+setupOnboardingSwipe();
 
 // Show the big logo briefly, then reveal the app
 setTimeout(()=>{
