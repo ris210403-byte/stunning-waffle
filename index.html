@@ -43,6 +43,26 @@
   }
   .display{font-family:'Fraunces', serif;}
 
+  /* ===== Splash screen ===== */
+  .splash-screen{
+    position:fixed;
+    inset:0;
+    background:#ffffff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:9999;
+    transition:opacity 0.45s ease;
+  }
+  .splash-screen img{
+    width:62%;
+    max-width:300px;
+  }
+  .splash-screen.hide{
+    opacity:0;
+    pointer-events:none;
+  }
+
   /* ===== Edge style presets (shape) ===== */
   .phone[data-edge="sharp"]{
     --r-lg:2px;
@@ -976,6 +996,10 @@
 </style>
 </head>
 <body>
+
+<div class="splash-screen" id="splashScreen">
+  <img src="splash-logo.png" alt="biteScout">
+</div>
 
 <div class="phone" id="phoneShell">
   <div class="topbar">
@@ -1920,6 +1944,15 @@ function handleWallpaperUpload(event){
 /* ============ INIT ============ */
 setTier('guest');
 setTab('discover');
+
+// Show the big logo briefly, then reveal the app
+setTimeout(()=>{
+  const splash = document.getElementById('splashScreen');
+  if(splash){
+    splash.classList.add('hide');
+    setTimeout(()=> splash.remove(), 500);
+  }
+}, 1100);
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {

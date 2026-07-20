@@ -1,5 +1,5 @@
-const CACHE_NAME = 'kaki-jalan-v7';
-const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
+const CACHE_NAME = 'kaki-jalan-v8';
+const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png', './splash-logo.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
