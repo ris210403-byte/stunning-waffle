@@ -1565,20 +1565,26 @@ function applyWallpaper(shell){
 }
 
 function renderDiscover(){
-  const cap = isGuest() ? CAPS.guest.saves : Infinity;
-  const used = state.savedPlaces.length;
   let html = `<div class="section-eyebrow">Browse by</div><div class="section-title">Discover</div>`;
 
   html += `
     <div class="search-bar">
       <span class="search-ic">🔎</span>
       <input id="searchInput" placeholder="Search any place or food spot..." value="${state.searchQuery}" oninput="onSearchInput(this.value)">
-      ${state.searchQuery ? `<button class="search-clear" onclick="onSearchInput('')">✕</button>` : ''}
-    </div>`;
+      <span id="searchClearWrap">${state.searchQuery ? `<button class="search-clear" onclick="onSearchInput('')">✕</button>` : ''}</span>
+    </div>
+    <div id="discoverBody">${renderDiscoverBody()}</div>`;
+
+  return html;
+}
+
+function renderDiscoverBody(){
+  const cap = isGuest() ? CAPS.guest.saves : Infinity;
+  const used = state.savedPlaces.length;
+  let html = '';
 
   if(state.searchQuery.trim().length > 0){
-    html += renderSearchResults(state.searchQuery);
-    return html;
+    return renderSearchResults(state.searchQuery);
   }
 
   html += `
@@ -1703,7 +1709,16 @@ function toggleNearbyMode(){
 
 function onSearchInput(val){
   state.searchQuery = val;
-  renderPreservingFocus();
+  const clearWrap = document.getElementById('searchClearWrap');
+  if(clearWrap){
+    clearWrap.innerHTML = val ? `<button class="search-clear" onclick="onSearchInput('')">✕</button>` : '';
+  }
+  const body = document.getElementById('discoverBody');
+  if(body){
+    body.innerHTML = renderDiscoverBody();
+  } else {
+    render(); // fallback if the shell isn't present for some reason
+  }
 }
 
 function renderSearchResults(query){
@@ -2083,8 +2098,6 @@ function setSortBy(s){
 }
 
 function renderPeople(){
-  const cap = isGuest() ? CAPS.guest.connections : Infinity;
-  const used = state.connections.length;
   let html = `<div class="section-eyebrow">Your circle</div><div class="section-title">People</div>`;
 
   html += `<button class="people-add-toggle" onclick="togglePeopleSearch()">${state.peopleSearchOpen ? '✕ Close search' : '＋ Find people'}</button>`;
@@ -2094,9 +2107,20 @@ function renderPeople(){
       <div class="search-bar" style="margin-top:10px;">
         <span class="search-ic">🔎</span>
         <input id="peopleSearchInput" placeholder="Search by name..." value="${state.peopleSearchQuery}" oninput="onPeopleSearchInput(this.value)">
-        ${state.peopleSearchQuery ? `<button class="search-clear" onclick="onPeopleSearchInput('')">✕</button>` : ''}
+        <span id="peopleSearchClearWrap">${state.peopleSearchQuery ? `<button class="search-clear" onclick="onPeopleSearchInput('')">✕</button>` : ''}</span>
       </div>`;
+  }
 
+  html += `<div id="peopleBody">${renderPeopleBody()}</div>`;
+  return html;
+}
+
+function renderPeopleBody(){
+  const cap = isGuest() ? CAPS.guest.connections : Infinity;
+  const used = state.connections.length;
+  let html = '';
+
+  if(state.peopleSearchOpen){
     const q = state.peopleSearchQuery.trim().toLowerCase();
     if(q.length > 0){
       const matches = PEOPLE.filter(p=>p.name.toLowerCase().includes(q));
@@ -2179,7 +2203,16 @@ function togglePeopleSearch(){
 
 function onPeopleSearchInput(val){
   state.peopleSearchQuery = val;
-  renderPreservingFocus();
+  const clearWrap = document.getElementById('peopleSearchClearWrap');
+  if(clearWrap){
+    clearWrap.innerHTML = val ? `<button class="search-clear" onclick="onPeopleSearchInput('')">✕</button>` : '';
+  }
+  const body = document.getElementById('peopleBody');
+  if(body){
+    body.innerHTML = renderPeopleBody();
+  } else {
+    render();
+  }
 }
 
 function toggleConnect(id){
