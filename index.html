@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>biteScout</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#F08418">
+<meta name="theme-color" content="#FFFFFF">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,13 +16,13 @@
   :root{
     --ink:#003C3C;
     --ink-soft:#0C4848;
-    --chrome:#F08418;
+    --chrome:#FFFFFF;
     --gold:#F08418;
     --chili:#BE4B33;
     --leaf:#F0A824;
     --paper:#FAFAFA;
-    --paper-dim:#E8F2F2;
-    --coffee:#003C3C;
+    --paper-dim:#F0F0F0;
+    --coffee:#1A1A1A;
     --accent:#F08418;
     --accent-dim:#F0841833;
     --card-bg:#ffffff;
@@ -164,7 +164,7 @@
     max-width:100%;
     background:var(--paper);
     border-radius:38px;
-    border:8px solid var(--chrome);
+    border:8px solid #1A1A1A;
     box-shadow:var(--shadow), 0 0 0 1px rgba(0,0,0,0.2);
     overflow:hidden;
     position:relative;
@@ -200,9 +200,10 @@
   /* ===== Top bar ===== */
   .topbar{
     background:var(--chrome);
-    color:var(--paper);
+    color:var(--coffee);
     padding:16px 18px 14px;
     position:relative;
+    border-bottom:1px solid #EEEEEE;
   }
   .brand-row{
     display:flex;
@@ -237,7 +238,7 @@
   }
   .tier-toggle{
     display:flex;
-    background:rgba(255,255,255,0.08);
+    background:#F0F0F0;
     border-radius:var(--r-md);
     padding:3px;
     font-size:11px;
@@ -248,7 +249,7 @@
   .tier-toggle button{
     border:none;
     background:transparent;
-    color:rgba(243,236,220,0.55);
+    color:#9CA3AF;
     padding:6px 12px;
     border-radius:var(--r-md);
     cursor:pointer;
@@ -258,8 +259,8 @@
     transition:all .2s ease;
   }
   .tier-toggle button.active{
-    background:var(--ink);
-    color:var(--paper);
+    background:var(--accent);
+    color:#fff;
   }
   .demo-label{
     font-size:9px;
@@ -400,7 +401,7 @@
   }
   .source-pill{
     font-size:9.5px;
-    color:#5F7C7C;
+    color:#6B7280;
     font-weight:700;
   }
   .flag-badge{
@@ -453,7 +454,7 @@
   }
   .place-meta{
     font-size:11.5px;
-    color:#5F7C7C;
+    color:#6B7280;
     margin-top:2px;
   }
   .tag-row{
@@ -542,13 +543,13 @@
     display:flex;
     justify-content:space-around;
     padding:10px 6px 14px;
-    border-top:1px solid rgba(255,255,255,0.06);
+    border-top:1px solid #EEEEEE;
     z-index:2000;
   }
   .navbtn{
     background:none;
     border:none;
-    color:rgba(243,236,220,0.45);
+    color:#9CA3AF;
     font-family:inherit;
     font-size:10px;
     font-weight:700;
@@ -560,7 +561,7 @@
     padding:4px 8px;
   }
   .navbtn .ic{ font-size:18px; }
-  .navbtn.active{ color:var(--ink); }
+  .navbtn.active{ color:var(--accent); }
 
   /* ===== Me tab ===== */
   .profile-head{
@@ -622,7 +623,7 @@
     font-weight:700;
     text-transform:uppercase;
     letter-spacing:0.4px;
-    color:#5F7C7C;
+    color:#6B7280;
     margin-bottom:6px;
     margin-top:4px;
   }
@@ -651,7 +652,7 @@
   }
   .avatar.locked{
     background:#cfc6b3;
-    color:#5F7C7C;
+    color:#6B7280;
   }
   .avatar-edit{
     position:absolute;
@@ -681,7 +682,7 @@
     border-radius:var(--r-md);
     margin-top:4px;
   }
-  .badge-guest{ background:#EDEDED; color:#5F7C7C; }
+  .badge-guest{ background:#EDEDED; color:#6B7280; }
   .badge-user{ background:var(--accent-dim); color:var(--coffee); }
 
   .stat-row{
@@ -705,7 +706,7 @@
   }
   .stat-label{
     font-size:9.5px;
-    color:#5F7C7C;
+    color:#6B7280;
     text-transform:uppercase;
     letter-spacing:0.4px;
     font-weight:700;
@@ -820,7 +821,7 @@
   .hue-preview-label{
     font-size:11.5px;
     font-weight:600;
-    color:#5F7C7C;
+    color:#6B7280;
   }
 
   .field-locked{
@@ -828,7 +829,7 @@
     border-radius:var(--r-sm);
     padding:12px;
     font-size:12px;
-    color:#5F7C7C;
+    color:#6B7280;
     display:flex;
     align-items:center;
     gap:8px;
@@ -891,7 +892,7 @@
   .empty-note{
     text-align:center;
     padding:30px 14px;
-    color:#5F7C7C;
+    color:#6B7280;
     font-size:12.5px;
   }
 
@@ -1015,7 +1016,7 @@
   }
   .place-popup .pp-dist{
     font-size:11px;
-    color:#5F7C7C;
+    color:#6B7280;
     margin-bottom:8px;
   }
   .place-popup .pp-actions{
@@ -1524,7 +1525,7 @@ function renderSearchResults(query){
             </div>
             <div class="stars">${'★'.repeat(Math.round(p.rating))}</div>
           </div>
-          <p style="font-size:11.5px;color:#5F7C7C;margin:6px 0 10px;">Not yet on biteScout — went here and think it's worth logging?</p>
+          <p style="font-size:11.5px;color:#6B7280;margin:6px 0 10px;">Not yet on biteScout — went here and think it's worth logging?</p>
           <div class="place-actions">
             <button class="btn btn-primary" onclick="addExternalPlace('${p.ext_id}')">+ Add to biteScout</button>
           </div>
@@ -1875,14 +1876,14 @@ function renderMe(){
         </div>`).join('')}
     </div>`;
 
-  html += `<p style="font-size:11.5px;color:#5F7C7C;margin-bottom:4px;">🎨 Theme customization is being reworked — coming back soon with a fresh look.</p>`;
+  html += `<p style="font-size:11.5px;color:#6B7280;margin-bottom:4px;">🎨 Theme customization is being reworked — coming back soon with a fresh look.</p>`;
 
   if(isGuest()){
     html += `
       <div class="field-locked">🔒 Display name, profile photo &amp; bio are User-only features.</div>
       <div class="place-card" style="text-align:center;">
         <div class="place-name" style="font-size:15px;margin-bottom:6px;">See what a User profile looks like</div>
-        <p style="font-size:12px;color:#5F7C7C;margin-bottom:12px;">Custom name, photo, bio, pinned places &amp; full stamp collection.</p>
+        <p style="font-size:12px;color:#6B7280;margin-bottom:12px;">Custom name, photo, bio, pinned places &amp; full stamp collection.</p>
         <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="setTier('user')">Preview User profile</button>
       </div>`;
   } else {
