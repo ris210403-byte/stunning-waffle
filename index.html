@@ -64,6 +64,80 @@
     pointer-events:none;
   }
 
+  /* ===== Welcome screen ===== */
+  .welcome-screen{
+    position:fixed;
+    inset:0;
+    background:#ffffff;
+    z-index:9000;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:48px 28px calc(36px + env(safe-area-inset-bottom));
+    transition:opacity 0.4s ease;
+  }
+  .welcome-screen.hide{
+    opacity:0;
+    pointer-events:none;
+  }
+  .welcome-logo-wrap{
+    margin-top:24px;
+    width:100%;
+    display:flex;
+    justify-content:center;
+  }
+  .welcome-logo-wrap img{
+    width:68%;
+    max-width:280px;
+  }
+  .welcome-spacer{
+    flex:1;
+  }
+  .welcome-actions{
+    width:100%;
+    max-width:340px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .welcome-btn-primary{
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:30px;
+    padding:15px;
+    font-family:inherit;
+    font-weight:700;
+    font-size:15px;
+    cursor:pointer;
+    width:100%;
+  }
+  .welcome-btn-outline{
+    background:transparent;
+    color:var(--accent);
+    border:2px solid var(--accent);
+    border-radius:30px;
+    padding:13px;
+    font-family:inherit;
+    font-weight:700;
+    font-size:15px;
+    cursor:pointer;
+    width:100%;
+  }
+  .welcome-link{
+    background:none;
+    border:none;
+    color:var(--ink);
+    font-family:inherit;
+    font-weight:600;
+    font-size:14px;
+    padding:10px;
+    cursor:pointer;
+    width:100%;
+    text-align:center;
+    opacity:0.75;
+  }
+
   /* ===== Edge style presets (shape) ===== */
   .phone[data-edge="sharp"]{
     --r-lg:2px;
@@ -1002,6 +1076,18 @@
   <img src="splash-logo.png" alt="biteScout">
 </div>
 
+<div class="welcome-screen" id="welcomeScreen">
+  <div class="welcome-logo-wrap">
+    <img src="splash-logo.png" alt="biteScout">
+  </div>
+  <div class="welcome-spacer"></div>
+  <div class="welcome-actions">
+    <button class="welcome-btn-primary" onclick="chooseWelcomeAction('user')">Create Account</button>
+    <button class="welcome-btn-outline" onclick="chooseWelcomeAction('user')">Sign In</button>
+    <button class="welcome-link" onclick="chooseWelcomeAction('guest')">Explore as Guest</button>
+  </div>
+</div>
+
 <div class="phone" id="phoneShell">
   <div class="topbar">
     <div class="brand-row">
@@ -1878,6 +1964,18 @@ function handleWallpaperUpload(event){
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
+}
+
+function chooseWelcomeAction(tier){
+  // NOTE: no real backend/auth exists yet — Create Account and Sign In
+  // both currently just set the demo tier to 'user' so the User experience
+  // can be tested. Wire this to real Firebase auth once that's built.
+  setTier(tier);
+  const welcome = document.getElementById('welcomeScreen');
+  if(welcome){
+    welcome.classList.add('hide');
+    setTimeout(()=> welcome.remove(), 450);
+  }
 }
 
 /* ============ INIT ============ */
