@@ -1507,6 +1507,29 @@ function render(){
   if(state.tab==='me') c.innerHTML = renderMe();
 }
 
+// render() replaces content.innerHTML wholesale, which destroys and recreates
+// any focused <input> — on mobile this drops keyboard focus after every
+// keystroke. This wrapper remembers what was focused (and cursor position)
+// and restores it immediately after the re-render, so typing stays continuous.
+function renderPreservingFocus(){
+  const active = document.activeElement;
+  const activeId = (active && active.id) ? active.id : null;
+  const selStart = (active && typeof active.selectionStart === 'number') ? active.selectionStart : null;
+  const selEnd = (active && typeof active.selectionEnd === 'number') ? active.selectionEnd : null;
+
+  render();
+
+  if(activeId){
+    const el = document.getElementById(activeId);
+    if(el){
+      el.focus();
+      if(selStart !== null && el.setSelectionRange){
+        try { el.setSelectionRange(selStart, selEnd); } catch(e){ /* ignore */ }
+      }
+    }
+  }
+}
+
 function applyFontColor(shell){
   if(isGuest()){
     shell.style.removeProperty('--coffee');
@@ -1680,7 +1703,7 @@ function toggleNearbyMode(){
 
 function onSearchInput(val){
   state.searchQuery = val;
-  render();
+  renderPreservingFocus();
 }
 
 function renderSearchResults(query){
@@ -2156,7 +2179,7 @@ function togglePeopleSearch(){
 
 function onPeopleSearchInput(val){
   state.peopleSearchQuery = val;
-  render();
+  renderPreservingFocus();
 }
 
 function toggleConnect(id){
@@ -2313,11 +2336,11 @@ function handleWallpaperUpload(event){
 // DUMMY placeholder content — final copy to be written together (see chat).
 // Each slide: icon (emoji placeholder for a real illustration later), headline, body.
 const ONBOARDING_SLIDES = [
-  { icon:'🔍', headline:'[Dummy] Why biteScout Exists', body:'[Placeholder] Anonymous reviews can be faked. We believe recommendations should come from real visits by real people.' },
-  { icon:'✅', headline:'[Dummy] Trust, Verified', body:'[Placeholder] Every place here was added and vouched for by an actual person — not scraped from somewhere else.' },
-  { icon:'🍜', headline:'[Dummy] Food & Places', body:"[Placeholder] Discover great eats and interesting spots, kept accurate by the community flagging what's changed." },
-  { icon:'📓', headline:'[Dummy] Your Own Diary', body:"[Placeholder] Save what you love, log your visits, and build a record that's genuinely yours." },
-  { icon:'🎉', headline:'[Dummy] Ready to Explore?', body:"[Placeholder] Let's find your next favourite place." },
+  { icon:'🤔', headline:"Reviews You Can't Trust?", body:"Fake reviews. Paid placements. Listings that haven't been updated in years. Sound familiar?" },
+  { icon:'🧭', headline:'Real Visits. Real Trust.', body:'biteScout only shows places real people have actually been to — not anonymous stars, not sponsored spots.' },
+  { icon:'🍜', headline:'Discover Food & Places', body:'From hidden kopitiams to must-see spots — every listing exists because someone genuinely went and vouched for it.' },
+  { icon:'🚩', headline:'Powered by Real Explorers', body:'Follow friends and trusted local scouts. Help keep the map accurate by flagging places that have closed or moved.' },
+  { icon:'📓', headline:'Start Your Own Food Diary', body:"Save your favourites, log your visits, and build a trail that's genuinely yours." },
 ];
 
 function renderOnboardingSlide(){
