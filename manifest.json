@@ -1,6 +1,6 @@
 {
-  "name": "Kaki Jalan",
-  "short_name": "Kaki Jalan",
+  "name": "biteScout",
+  "short_name": "biteScout",
   "description": "Trust-based food and places discovery for Malaysia",
   "start_url": "./index.html",
   "display": "standalone",

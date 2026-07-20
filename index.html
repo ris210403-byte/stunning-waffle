@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Kaki Jalan</title>
+<title>biteScout</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1E2B26">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -120,15 +120,19 @@
     gap:8px;
   }
   .brand-mark{
-    width:30px;height:30px;
+    width:32px;height:32px;
     border-radius:50%;
-    background:var(--accent);
+    background:#fff;
     display:flex;align-items:center;justify-content:center;
-    font-family:'Fraunces',serif;
-    font-weight:700;
-    color:var(--ink);
-    font-size:15px;
     flex-shrink:0;
+    overflow:hidden;
+    padding:3px;
+    box-sizing:border-box;
+  }
+  .brand-mark img{
+    width:100%;
+    height:100%;
+    object-fit:contain;
   }
   .brand-name{
     font-family:'Fraunces',serif;
@@ -977,8 +981,8 @@
   <div class="topbar">
     <div class="brand-row">
       <div class="brand">
-        <div class="brand-mark">K</div>
-        <div class="brand-name">Kaki Jalan</div>
+        <div class="brand-mark"><img src="icon-192.png" alt="biteScout logo"></div>
+        <div class="brand-name">biteScout</div>
       </div>
       <div class="tier-toggle">
         <button id="btnGuest" onclick="setTier('guest')">Guest</button>
@@ -1109,7 +1113,7 @@ const PLACES = [
   {id:'bukit-cina', name:'Bukit Cina', area:'Melaka', cat:'Historical', kind:'place', icon:'⛩️', rating:4.3, tags:['History','Quiet'], link:'https://en.wikipedia.org/wiki/Bukit_China', lat:2.1975, lng:102.2469},
 ];
 
-/* Simulated Google Places search results — not yet in Kaki Jalan's own database.
+/* Simulated Google Places search results — not yet in biteScout's own database.
    In production this would come from a backend call to the Google Places API. */
 const EXTERNAL_RESULTS = [
   {ext_id:'g1', name:'Capitol Satay Celup', area:'Melaka', cat:'Satay Celup', kind:'food', icon:'🍢', rating:4.5, source:'Google Maps', lat:2.1943, lng:102.2489},
@@ -1359,7 +1363,7 @@ function renderSearchResults(query){
   let html = '';
 
   if(own.length > 0){
-    html += `<div class="section-eyebrow" style="margin-top:4px;">Already on Kaki Jalan</div>`;
+    html += `<div class="section-eyebrow" style="margin-top:4px;">Already on biteScout</div>`;
     own.forEach(p=>{
       const saved = state.savedPlaces.includes(p.id);
       let distPill = '';
@@ -1408,9 +1412,9 @@ function renderSearchResults(query){
             </div>
             <div class="stars">${'★'.repeat(Math.round(p.rating))}</div>
           </div>
-          <p style="font-size:11.5px;color:#8a7a67;margin:6px 0 10px;">Not yet on Kaki Jalan — went here and think it's worth logging?</p>
+          <p style="font-size:11.5px;color:#8a7a67;margin:6px 0 10px;">Not yet on biteScout — went here and think it's worth logging?</p>
           <div class="place-actions">
-            <button class="btn btn-primary" onclick="addExternalPlace('${p.ext_id}')">+ Add to Kaki Jalan</button>
+            <button class="btn btn-primary" onclick="addExternalPlace('${p.ext_id}')">+ Add to biteScout</button>
           </div>
         </div>`;
     });
@@ -1432,13 +1436,13 @@ function addExternalPlace(extId){
   if(!PLACES.some(p=>p.id===newId)){
     PLACES.push({
       id:newId, name:ext.name, area:ext.area, cat:ext.cat, kind:ext.kind,
-      icon:ext.icon, rating:ext.rating, tags:['New on Kaki Jalan'], link:null,
+      icon:ext.icon, rating:ext.rating, tags:['New on biteScout'], link:null,
       lat:ext.lat, lng:ext.lng
     });
   }
   state.savedPlaces.push(newId);
   state.searchQuery = '';
-  toast(`${ext.name} added to Kaki Jalan and saved to your diary.`);
+  toast(`${ext.name} added to biteScout and saved to your diary.`);
   setTab('diary');
 }
 
@@ -1470,7 +1474,7 @@ function flagPlace(id){
   } else {
     state.flaggedByMe.push(id);
     state.flagCounts[id] = (state.flagCounts[id]||0) + 1;
-    toast('Thanks — flagged for the community to verify. This keeps Kaki Jalan accurate.');
+    toast('Thanks — flagged for the community to verify. This keeps biteScout accurate.');
   }
   render();
 }
