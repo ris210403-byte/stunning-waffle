@@ -14,17 +14,17 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <style>
   :root{
-    --ink:#003C3C;
+    --ink:#0D4D4D;
     --ink-soft:#0C4848;
     --chrome:#FFFFFF;
-    --gold:#F08418;
+    --gold:#FFA726;
     --chili:#BE4B33;
     --leaf:#F0A824;
-    --paper:#FAFAFA;
+    --paper:#F5F7F7;
     --paper-dim:#F0F0F0;
     --coffee:#1A1A1A;
-    --accent:#F08418;
-    --accent-dim:#F0841833;
+    --accent:#FFA726;
+    --accent-dim:#FFA72633;
     --card-bg:#ffffff;
     --radius:18px;
     --r-lg:18px;
@@ -364,7 +364,7 @@
     display:inline-block;
   }
   .kind-pill.food{ background:#FCE4D0; color:var(--accent); }
-  .kind-pill.place{ background:#dfe6e0; color:var(--leaf); }
+  .kind-pill.place{ background:#dfe6e0; color:var(--coffee); }
 
   .search-bar{
     display:flex;
@@ -889,6 +889,20 @@
   .toast.show{ display:flex; }
   .toast .lock-ic{ color:var(--gold); }
 
+  .diary-entry{
+    cursor:pointer;
+    transition:transform .15s ease;
+  }
+  .diary-entry:active{
+    transform:scale(0.98);
+  }
+  .diary-map-hint{
+    font-size:11px;
+    font-weight:700;
+    color:var(--accent);
+    margin-top:8px;
+  }
+
   .empty-note{
     text-align:center;
     padding:30px 14px;
@@ -977,6 +991,16 @@
     bottom:80px;
     right:14px;
   }
+  .map-page .leaflet-bottom.leaflet-left{
+    bottom:80px;
+    left:14px;
+  }
+  .map-page .leaflet-control-zoom{
+    border-radius:var(--r-md) !important;
+    overflow:hidden;
+    box-shadow:0 2px 8px rgba(0,0,0,0.25) !important;
+    border:none !important;
+  }
   .map-page .cap-meter{
     position:absolute;
     top:66px; left:14px; right:14px;
@@ -1058,6 +1082,21 @@
   }
   .nearby-toggle.active{
     background:var(--accent);
+  }
+  .people-add-toggle{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:var(--r-md);
+    padding:9px 16px;
+    font-family:inherit;
+    font-weight:700;
+    font-size:12px;
+    cursor:pointer;
+    margin-bottom:14px;
   }
   .distance-pill{
     font-size:10.5px;
@@ -1170,6 +1209,9 @@ const state = {
   nearbyMode: false,      // Discover tab: browsing by distance instead of search text
   mapView: null,          // {center:[lat,lng], zoom} — preserves pan/zoom across re-renders
   hasAttemptedAutoLocate: false, // ensures we only auto-request location once per session
+  focusPlaceId: null, // set when jumping from Diary to a specific place on the map
+  peopleSearchOpen: false,
+  peopleSearchQuery: '',
 };
 
 let leafletMap = null;
@@ -1237,10 +1279,10 @@ const EXTERNAL_RESULTS = [
 ];
 
 const PEOPLE = [
-  {id:'aiman', name:'Aiman', badge:'Local Legend', color:'#BE4B33', visits:212},
-  {id:'siti', name:'Siti', badge:'Trusted Local', color:'#55735F', visits:88},
-  {id:'chefwan', name:'ChefWan', badge:'Verified Influencer', color:'#E3A23C', visits:340},
-  {id:'huda', name:'Huda', badge:'Regular', color:'#3E6E8E', visits:14},
+  {id:'aiman', name:'Aiman', badge:'Local Legend', color:'#BE4B33', visits:212, lat:2.1935, lng:102.2485},
+  {id:'siti', name:'Siti', badge:'Trusted Local', color:'#55735F', visits:88, lat:2.2010, lng:102.2410},
+  {id:'chefwan', name:'ChefWan', badge:'Verified Influencer', color:'#E3A23C', visits:340, lat:2.1880, lng:102.2520},
+  {id:'huda', name:'Huda', badge:'Regular', color:'#3E6E8E', visits:14, lat:2.2150, lng:102.1980},
 ];
 
 /* ============ HELPERS ============ */
@@ -1655,7 +1697,7 @@ function renderMap(){
       <button class="locate-btn" onclick="onLocateMeClick()" title="Find my location">📍</button>
 
       <div class="map-floating-bottom">
-        <span class="legend-dot" style="background:#F08418"></span>Food &nbsp;
+        <span class="legend-dot" style="background:#FFA726"></span>Food &nbsp;
         <span class="legend-dot" style="background:#F0A824"></span>Place &nbsp;·&nbsp; ${locNote}
       </div>
     </div>`;
@@ -1675,7 +1717,8 @@ function initLeafletMap(savedList){
   let center = state.mapView ? state.mapView.center : (state.userLocation ? [state.userLocation.lat, state.userLocation.lng] : defaultCenter);
   let zoom = state.mapView ? state.mapView.zoom : (state.userLocation ? 14 : 12);
 
-  leafletMap = L.map('leafletMap', { zoomControl:true }).setView(center, zoom);
+  leafletMap = L.map('leafletMap', { zoomControl:false }).setView(center, zoom);
+  L.control.zoom({ position:'bottomleft' }).addTo(leafletMap);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -1696,9 +1739,9 @@ function initLeafletMap(savedList){
 
   // Place markers
   savedList.forEach(p=>{
-    const color = p.kind==='food' ? '#F08418' : '#F0A824';
+    const color = p.kind==='food' ? '#FFA726' : '#F0A824';
     const marker = L.circleMarker([p.lat, p.lng], {
-      radius: 9, fillColor: color, fillOpacity: 1, color:'#003C3C', weight:2
+      radius: 9, fillColor: color, fillOpacity: 1, color:'#0D4D4D', weight:2
     }).addTo(leafletMap);
 
     let distText = '';
@@ -1717,7 +1760,13 @@ function initLeafletMap(savedList){
         </div>
       </div>`;
     marker.bindPopup(popupHtml);
+
+    if(state.focusPlaceId === p.id){
+      setTimeout(()=> marker.openPopup(), 300);
+    }
   });
+
+  state.focusPlaceId = null; // consume it so it doesn't reopen on later re-renders
 }
 
 function onLocateMeClick(){
@@ -1739,6 +1788,15 @@ function setMapFilter(f){
   state.mapFilter = f;
   state.mapView = null; // let it reframe when filter changes which pins show
   render();
+}
+
+function focusPlaceOnMap(placeId){
+  const place = PLACES.find(p=>p.id===placeId);
+  if(!place) return;
+  state.mapFilter = 'all'; // make sure the pin isn't hidden by a food/place filter
+  state.mapView = { center:[place.lat, place.lng], zoom:16 };
+  state.focusPlaceId = placeId;
+  setTab('map');
 }
 
 function renderDiary(){
@@ -1764,11 +1822,12 @@ function renderDiary(){
       const p = PLACES.find(x=>x.id===id);
       if(!p) return;
       html += `
-        <div class="place-card">
+        <div class="place-card diary-entry" onclick="focusPlaceOnMap('${p.id}')">
           <div class="place-top">
             <div><div class="place-name">${p.name}</div><div class="place-meta">Visited · ${p.area}</div></div>
             <div class="stars">${'★'.repeat(Math.round(p.rating))}</div>
           </div>
+          <div class="diary-map-hint">📍 Tap to view on map</div>
         </div>`;
     });
   }
@@ -1779,6 +1838,30 @@ function renderPeople(){
   const cap = isGuest() ? CAPS.guest.connections : Infinity;
   const used = state.connections.length;
   let html = `<div class="section-eyebrow">Your circle</div><div class="section-title">People</div>`;
+
+  html += `<button class="people-add-toggle" onclick="togglePeopleSearch()">${state.peopleSearchOpen ? '✕ Close search' : '＋ Find people'}</button>`;
+
+  if(state.peopleSearchOpen){
+    html += `
+      <div class="search-bar" style="margin-top:10px;">
+        <span class="search-ic">🔎</span>
+        <input id="peopleSearchInput" placeholder="Search by name..." value="${state.peopleSearchQuery}" oninput="onPeopleSearchInput(this.value)">
+        ${state.peopleSearchQuery ? `<button class="search-clear" onclick="onPeopleSearchInput('')">✕</button>` : ''}
+      </div>`;
+
+    const q = state.peopleSearchQuery.trim().toLowerCase();
+    if(q.length > 0){
+      const matches = PEOPLE.filter(p=>p.name.toLowerCase().includes(q));
+      html += `<div class="section-eyebrow" style="margin-top:14px;">Search results</div>`;
+      if(matches.length===0){
+        html += `<div class="empty-note">No one found matching "${state.peopleSearchQuery}".</div>`;
+      } else {
+        matches.forEach(p=> html += personRowHtml(p, cap, used));
+      }
+      return html;
+    }
+  }
+
   if(isGuest()){
     const pct = Math.min(100,(used/cap)*100);
     html += `
@@ -1787,33 +1870,58 @@ function renderPeople(){
         <div class="cap-track"><div class="cap-fill ${used>=cap?'full':''}" style="width:${pct}%"></div></div>
       </div>`;
   }
-  PEOPLE.forEach(p=>{
-    const connected = state.connections.includes(p.id);
-    const blocked = state.blocked.includes(p.id);
-    let actionBtn;
-    if(blocked){
-      actionBtn = `<button class="icon-btn" onclick="toggleBlock('${p.id}')" title="Unblock">🚫</button>`;
-    } else if(connected){
-      actionBtn = `<button class="icon-btn" onclick="toggleConnect('${p.id}')" title="Remove">✓</button>`;
-    } else if(isGuest() && used>=cap){
-      actionBtn = `<button class="icon-btn" onclick="capToast('connect')" title="Locked">🔒</button>`;
-    } else {
-      actionBtn = `<button class="icon-btn" onclick="toggleConnect('${p.id}')" title="Add">＋</button>`;
-    }
-    html += `
-      <div class="person-row">
-        <div class="person-avatar" style="background:${p.color}">${p.name[0]}</div>
-        <div class="person-info">
-          <div class="person-name">${p.name}</div>
-          <div class="person-badge">${p.badge} · ${p.visits} visits</div>
-        </div>
-        <div class="person-actions">
-          ${actionBtn}
-          ${!blocked ? `<button class="icon-btn" onclick="toggleBlock('${p.id}')" title="Block">⛔</button>` : ''}
-        </div>
-      </div>`;
-  });
+
+  // Simulated "People Near You" using real device GPS + mock people locations.
+  // Real proximity discovery across real users needs a backend — this shows the UX now.
+  if(state.userLocation){
+    const nearby = PEOPLE
+      .map(p=>({ ...p, dist: distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng) }))
+      .sort((a,b)=>a.dist-b.dist);
+    html += `<div class="section-eyebrow" style="margin-top:6px;">📍 People near you</div>`;
+    nearby.forEach(p=> html += personRowHtml(p, cap, used, formatDistance(p.dist)));
+    html += `<div class="section-eyebrow" style="margin-top:16px;">Everyone</div>`;
+  }
+
+  PEOPLE.forEach(p=> html += personRowHtml(p, cap, used));
   return html;
+}
+
+function personRowHtml(p, cap, used, distLabel){
+  const connected = state.connections.includes(p.id);
+  const blocked = state.blocked.includes(p.id);
+  let actionBtn;
+  if(blocked){
+    actionBtn = `<button class="icon-btn" onclick="toggleBlock('${p.id}')" title="Unblock">🚫</button>`;
+  } else if(connected){
+    actionBtn = `<button class="icon-btn" onclick="toggleConnect('${p.id}')" title="Remove">✓</button>`;
+  } else if(isGuest() && used>=cap){
+    actionBtn = `<button class="icon-btn" onclick="capToast('connect')" title="Locked">🔒</button>`;
+  } else {
+    actionBtn = `<button class="icon-btn" onclick="toggleConnect('${p.id}')" title="Add">＋</button>`;
+  }
+  return `
+    <div class="person-row">
+      <div class="person-avatar" style="background:${p.color}">${p.name[0]}</div>
+      <div class="person-info">
+        <div class="person-name">${p.name}</div>
+        <div class="person-badge">${p.badge} · ${p.visits} visits${distLabel ? ' · '+distLabel : ''}</div>
+      </div>
+      <div class="person-actions">
+        ${actionBtn}
+        ${!blocked ? `<button class="icon-btn" onclick="toggleBlock('${p.id}')" title="Block">⛔</button>` : ''}
+      </div>
+    </div>`;
+}
+
+function togglePeopleSearch(){
+  state.peopleSearchOpen = !state.peopleSearchOpen;
+  if(!state.peopleSearchOpen) state.peopleSearchQuery = '';
+  render();
+}
+
+function onPeopleSearchInput(val){
+  state.peopleSearchQuery = val;
+  render();
 }
 
 function toggleConnect(id){
