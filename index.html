@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>biteScout</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#003C3C">
+<meta name="theme-color" content="#F08418">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,6 +16,7 @@
   :root{
     --ink:#003C3C;
     --ink-soft:#0C4848;
+    --chrome:#F08418;
     --gold:#F08418;
     --chili:#BE4B33;
     --leaf:#F0A824;
@@ -33,7 +34,7 @@
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{
-    background: radial-gradient(circle at 50% 0%, #33453d 0%, #16211c 70%);
+    background: #16211c;
     min-height:100vh;
     display:flex;
     align-items:flex-start;
@@ -89,7 +90,7 @@
     max-width:100%;
     background:var(--paper);
     border-radius:38px;
-    border:8px solid var(--ink);
+    border:8px solid var(--chrome);
     box-shadow:var(--shadow), 0 0 0 1px rgba(0,0,0,0.2);
     overflow:hidden;
     position:relative;
@@ -103,7 +104,7 @@
     body{
       padding:0;
       align-items:stretch;
-      background:var(--ink);
+      background:var(--chrome);
     }
     .phone{
       width:100vw;
@@ -124,7 +125,7 @@
 
   /* ===== Top bar ===== */
   .topbar{
-    background:var(--ink);
+    background:var(--chrome);
     color:var(--paper);
     padding:16px 18px 14px;
     position:relative;
@@ -183,8 +184,8 @@
     transition:all .2s ease;
   }
   .tier-toggle button.active{
-    background:var(--accent);
-    color:var(--ink);
+    background:var(--ink);
+    color:var(--paper);
   }
   .demo-label{
     font-size:9px;
@@ -197,7 +198,7 @@
   /* ===== Upgrade banner ===== */
   .upgrade-banner{
     margin-top:12px;
-    background:linear-gradient(120deg, var(--accent), #C96A0F);
+    background:var(--accent);
     border-radius:var(--r-lg);
     padding:10px 12px;
     display:flex;
@@ -362,7 +363,7 @@
     width:100%;
     height:110px;
     border-radius:var(--r-sm);
-    background:linear-gradient(135deg, var(--leaf), var(--ink));
+    background:var(--accent);
     display:flex;
     align-items:center;
     justify-content:center;
@@ -463,7 +464,7 @@
   .bottomnav{
     position:absolute;
     bottom:0; left:0; right:0;
-    background:var(--ink);
+    background:var(--chrome);
     display:flex;
     justify-content:space-around;
     padding:10px 6px 14px;
@@ -485,7 +486,7 @@
     padding:4px 8px;
   }
   .navbtn .ic{ font-size:18px; }
-  .navbtn.active{ color:var(--accent); }
+  .navbtn.active{ color:var(--ink); }
 
   /* ===== Me tab ===== */
   .profile-head{
