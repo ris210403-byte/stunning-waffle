@@ -426,6 +426,31 @@
     line-height:1.5;
   }
 
+  /* ===== Map place detail overlay (opened by tapping the map bottom sheet) ===== */
+  .map-detail-screen{
+    position:fixed;
+    inset:0;
+    background:var(--paper);
+    z-index:9600;
+    display:flex;
+    flex-direction:column;
+    transition:opacity 0.3s ease, transform 0.3s ease;
+  }
+  .map-detail-screen.hide{
+    opacity:0;
+    pointer-events:none;
+    transform:translateY(12px);
+  }
+  .map-detail-header{
+    padding:calc(16px + env(safe-area-inset-top)) 16px 12px;
+    flex-shrink:0;
+  }
+  .map-detail-body{
+    flex:1;
+    overflow-y:auto;
+    padding:0 20px calc(28px + env(safe-area-inset-bottom));
+  }
+
   /* ===== Required nickname overlay (shown once, right after sign-up) ===== */
   .nickname-screen{
     position:fixed;
@@ -1156,6 +1181,51 @@
     opacity:1;
     box-shadow:0 2px 6px rgba(59,42,30,0.15);
   }
+  .map-bottom-sheet{
+    position:absolute;
+    bottom:14px; left:14px; right:14px;
+    z-index:1500;
+    display:none;
+  }
+  .map-bottom-sheet.show{ display:block; }
+  .map-sheet-card{
+    background:#fff;
+    border-radius:var(--r-lg);
+    padding:12px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.28);
+    display:flex;
+    align-items:center;
+    gap:12px;
+    cursor:pointer;
+  }
+  .map-sheet-photo{
+    width:56px; height:56px;
+    border-radius:12px;
+    flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:28px;
+  }
+  .map-sheet-info{ flex:1; min-width:0; }
+  .map-sheet-name{
+    font-weight:700; font-size:14px; color:var(--coffee);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .map-sheet-meta{
+    font-size:11.5px; color:#6B7280; margin-top:3px;
+    display:flex; align-items:center; gap:4px;
+  }
+  .map-sheet-save{
+    flex-shrink:0;
+    width:36px; height:36px;
+    border-radius:50%;
+    border:none;
+    background:var(--paper-dim);
+    color:var(--coffee);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+  }
+  .map-sheet-save.saved{ background:var(--accent); color:#fff; }
+
   .map-floating-bottom{
     position:absolute;
     bottom:14px; left:14px; right:14px;
@@ -1252,44 +1322,6 @@
     display:flex;
     align-items:center;
     justify-content:center;
-  }
-  .place-popup{
-    font-family:'Plus Jakarta Sans', sans-serif;
-    min-width:160px;
-  }
-  .place-popup .pp-name{
-    font-family:'Plus Jakarta Sans',sans-serif;
-    font-weight:700;
-    font-size:14px;
-    color:var(--coffee);
-    margin-bottom:2px;
-  }
-  .place-popup .pp-dist{
-    font-size:11px;
-    color:#6B7280;
-    margin-bottom:8px;
-  }
-  .place-popup .pp-actions{
-    display:flex;
-    gap:6px;
-  }
-  .place-popup .pp-btn{
-    font-size:11px;
-    font-weight:700;
-    padding:6px 10px;
-    border-radius:14px;
-    border:none;
-    cursor:pointer;
-    text-decoration:none;
-    display:inline-block;
-  }
-  .place-popup .pp-btn.nav{
-    background:var(--accent);
-    color:var(--ink);
-  }
-  .place-popup .pp-btn.diary{
-    background:var(--paper-dim);
-    color:var(--coffee);
   }
   .discover-action-row{
     display:flex;
@@ -1398,6 +1430,13 @@
   </div>
 </div>
 
+<div class="map-detail-screen hide" id="mapDetailScreen">
+  <div class="map-detail-header">
+    <button class="settings-close" id="mapDetailBackBtn" onclick="closeMapPlaceDetail()"></button>
+  </div>
+  <div class="map-detail-body" id="mapDetailBody"></div>
+</div>
+
 <div class="phone" id="phoneShell">
   <div class="topbar" id="topbar">
     <div class="brand-row">
@@ -1472,6 +1511,7 @@ const ICON_PATHS = {
   'x': `<path d="M18 6 6 18" /> <path d="m6 6 12 12" />`,
   'landmark': `<path d="M10 18v-7" /> <path d="M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z" /> <path d="M14 18v-7" /> <path d="M18 18v-7" /> <path d="M3 22h18" /> <path d="M6 18v-7" />`,
   'anchor': `<path d="M12 6v16" /> <path d="m19 13 2-1a9 9 0 0 1-18 0l2 1" /> <path d="M9 11h6" /> <circle cx="12" cy="4" r="2" />`,
+  'arrow-left': `<path d="m12 19-7-7 7-7" /> <path d="M19 12H5" />`,
 };
 
 function icon(name, opts){
@@ -1564,6 +1604,7 @@ const state = {
   sortBy: 'recommended',
   mapSort: 'recommended',
   mapSearchQuery: '',
+  selectedMapPlaceId: null,
   onboardingIndex: 0,
 };
 
@@ -2192,7 +2233,9 @@ function renderMap(){
 
       <button class="locate-btn" onclick="onLocateMeClick()" title="Find my location">${icon('map-pin',{size:18})}</button>
 
-      <div class="map-floating-bottom">
+      <div class="map-bottom-sheet ${state.selectedMapPlaceId ? 'show' : ''}" id="mapBottomSheet">${state.selectedMapPlaceId ? mapBottomSheetHtml(PLACES.find(x=>x.id===state.selectedMapPlaceId)) : ''}</div>
+
+      <div class="map-floating-bottom" id="mapLegend" style="${state.selectedMapPlaceId ? 'display:none;' : ''}">
         <span class="legend-dot" style="background:#FF8A00"></span>Food &nbsp;
         <span class="legend-dot" style="background:#19A3DC"></span>Place &nbsp;·&nbsp; ${locNote}
       </div>
@@ -2226,17 +2269,18 @@ function initMap(savedList){
 
   mapGL = new maplibregl.Map({
     container: 'mapCanvas',
-    style: 'https://tiles.openfreemap.org/styles/liberty', // free, no API key — clean vector cartography
+    style: 'https://tiles.openfreemap.org/styles/positron', // free, no API key — clean, minimal, no 3D buildings, faster to load
     center: [center[1], center[0]], // MapLibre wants [lng, lat]
     zoom: zoom,
     bearing: bearing,
     pitch: 0,
+    maxPitch: 0, // locked flat — no tilt gesture, so 3D building extrusions can never trigger
     attributionControl: false,
   });
 
   mapGL.addControl(new maplibregl.AttributionControl({ compact: true }));
-  // Rotation is native here — two-finger twist on mobile, right-click-drag on desktop.
-  // The compass button resets bearing back to north with one tap.
+  // Rotation is still native — two-finger twist on mobile, right-click-drag on desktop.
+  // Tilt is disabled (maxPitch above), so the compass only ever resets bearing, not pitch.
   mapGL.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: false }), 'bottom-left');
 
   mapGL.on('moveend', ()=>{
@@ -2244,10 +2288,12 @@ function initMap(savedList){
     state.mapView = { center: [c.lat, c.lng], zoom: mapGL.getZoom(), bearing: mapGL.getBearing() };
   });
 
+  mapGL.on('click', ()=> deselectMapPlace());
+
   mapGL.on('load', function(){
     if(state.userLocation){
       const el = document.createElement('div');
-      el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#3E6E8E;border:3px solid #fff;box-shadow:0 0 0 2px rgba(62,110,142,0.35);';
+      el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#0F6DBE;border:3px solid #fff;box-shadow:0 0 0 2px rgba(15,109,190,0.35);';
       new maplibregl.Marker({ element: el })
         .setLngLat([state.userLocation.lng, state.userLocation.lat])
         .setPopup(new maplibregl.Popup({ offset: 12 }).setText('You are here'))
@@ -2270,36 +2316,80 @@ function renderMapMarkers(savedList){
     const color = p.kind==='food' ? '#FF8A00' : '#19A3DC';
     const el = document.createElement('div');
     el.style.cssText = `width:22px;height:22px;border-radius:50%;background:${color};border:2px solid #0F6DBE;box-shadow:0 1px 4px rgba(0,0,0,0.3);cursor:pointer;`;
-
-    let distText = '';
-    if(state.userLocation){
-      const d = distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng);
-      distText = `<div class="pp-dist">${formatDistance(d)}</div>`;
-    }
-
-    const popupHtml = `
-      <div class="place-popup">
-        <div class="pp-name">${p.icon} ${p.name}</div>
-        ${distText}
-        <div class="pp-actions">
-          <a class="pp-btn nav" href="${googleMapsDirectionsUrl(p.lat,p.lng)}" target="_blank" rel="noopener">${icon('compass',{size:13})} Navigate</a>
-          <button class="pp-btn diary" onclick="setTab('diary')">${icon('book-open',{size:13})} Diary</button>
-        </div>
-      </div>`;
+    el.addEventListener('click', function(e){
+      e.stopPropagation();
+      selectMapPlace(p.id);
+    });
 
     const marker = new maplibregl.Marker({ element: el })
       .setLngLat([p.lng, p.lat])
-      .setPopup(new maplibregl.Popup({ offset: 16 }).setHTML(popupHtml))
       .addTo(mapGL);
 
     if(state.focusPlaceId === p.id){
-      setTimeout(()=> marker.togglePopup(), 300);
+      setTimeout(()=> selectMapPlace(p.id), 300);
     }
 
     mapMarkers.push(marker);
   });
 
   state.focusPlaceId = null; // consume it so it doesn't reopen on later re-renders
+}
+
+/* Compact preview card shown at the bottom of the map when a pin is tapped —
+   tap the card itself to open the full-screen detail view. */
+function mapBottomSheetHtml(p){
+  if(!p) return '';
+  const saved = state.savedPlaces.includes(p.id);
+  const tint = p.kind==='food' ? '#FFE1C2' : '#D7EDF8';
+  let distText = '';
+  if(state.userLocation){
+    const d = distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng);
+    distText = ' · ' + formatDistance(d);
+  }
+  return `
+    <div class="map-sheet-card" onclick="openMapPlaceDetail('${p.id}')">
+      <div class="map-sheet-photo" style="background:${tint};">${p.icon}</div>
+      <div class="map-sheet-info">
+        <div class="map-sheet-name">${p.name}</div>
+        <div class="map-sheet-meta">${icon('star',{size:12,filled:true,color:'#FFC145'})} ${p.rating} · ${p.cat}${distText}</div>
+      </div>
+      <button class="map-sheet-save ${saved?'saved':''}" onclick="event.stopPropagation(); toggleSave('${p.id}');" title="${saved?'Saved':'Save'}">
+        ${icon(saved?'check':'plus',{size:16})}
+      </button>
+    </div>`;
+}
+
+/* Selecting a pin only updates the bottom sheet directly (never calls the full
+   render()), so the map's pan/zoom/rotation is never disturbed by browsing pins. */
+function selectMapPlace(id){
+  state.selectedMapPlaceId = id;
+  const p = PLACES.find(x=>x.id===id);
+  const sheet = document.getElementById('mapBottomSheet');
+  const legend = document.getElementById('mapLegend');
+  if(sheet && p){
+    sheet.innerHTML = mapBottomSheetHtml(p);
+    sheet.classList.add('show');
+  }
+  if(legend) legend.style.display = 'none';
+}
+
+function deselectMapPlace(){
+  state.selectedMapPlaceId = null;
+  const sheet = document.getElementById('mapBottomSheet');
+  const legend = document.getElementById('mapLegend');
+  if(sheet){ sheet.classList.remove('show'); sheet.innerHTML = ''; }
+  if(legend) legend.style.display = '';
+}
+
+function openMapPlaceDetail(id){
+  const p = PLACES.find(x=>x.id===id);
+  if(!p) return;
+  document.getElementById('mapDetailBody').innerHTML = placeCardHtml(p);
+  document.getElementById('mapDetailScreen').classList.remove('hide');
+}
+
+function closeMapPlaceDetail(){
+  document.getElementById('mapDetailScreen').classList.add('hide');
 }
 
 function currentMapPlaceList(){
@@ -3138,6 +3228,7 @@ document.getElementById('icNavMe').innerHTML = icon('circle-user', {size:20});
 document.getElementById('settingsCloseBtn').innerHTML = icon('x', {size:14});
 document.getElementById('toastLockIc').innerHTML = icon('lock', {size:13});
 document.getElementById('settingsGearBtn').innerHTML = icon('settings', {size:16});
+document.getElementById('mapDetailBackBtn').innerHTML = icon('arrow-left', {size:16});
 
 setTier('guest');
 setTab('discover');
