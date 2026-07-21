@@ -2212,7 +2212,7 @@ function renderMap(){
     <div class="map-page">
       <div class="map-floating-search">
         <span class="search-ic" onclick="onMapSearchSubmit()" style="cursor:pointer;">${icon('search', {size:15})}</span>
-        <input id="mapSearchInput" placeholder="Search places or type a location..." value="${state.mapSearchQuery}" oninput="onMapSearchTyping(this.value)" onkeydown="if(event.key==='Enter'){ event.preventDefault(); onMapSearchSubmit(); }">
+        <input id="mapSearchInput" placeholder="Search places or type a location..." value="${state.mapSearchQuery}" enterkeyhint="search" inputmode="search" oninput="onMapSearchTyping(this.value)" onkeydown="onMapSearchKey(event)" onkeyup="onMapSearchKey(event)">
         <span id="mapSearchClearWrap">${state.mapSearchQuery ? `<button class="search-clear" onclick="onMapSearchClear()">${icon('x', {size:11})}</button>` : ''}</span>
       </div>
 
@@ -2398,6 +2398,24 @@ function currentMapPlaceList(){
     .filter(p=> state.mapSort==='recommended' || p.rating >= state.mapSort);
 }
 
+/* Mobile virtual keyboards are inconsistent about firing a clean 'Enter'
+   keydown — some only reflect it on keyup, some report keyCode 13 without a
+   proper event.key. Checking multiple signals on both events (with a guard so
+   a single press doesn't double-fire across keydown+keyup) covers this. */
+let _mapSearchKeyHandled = false;
+function onMapSearchKey(e){
+  const isEnter = e.key === 'Enter' || e.keyCode === 13 || e.which === 13;
+  if(!isEnter) return;
+  e.preventDefault();
+  if(e.type === 'keydown'){
+    _mapSearchKeyHandled = true;
+    onMapSearchSubmit();
+  } else if(e.type === 'keyup' && !_mapSearchKeyHandled){
+    onMapSearchSubmit();
+  }
+  if(e.type === 'keyup') _mapSearchKeyHandled = false;
+}
+
 function onMapSearchTyping(val){
   state.mapSearchQuery = val;
   const clearWrap = document.getElementById('mapSearchClearWrap');
@@ -2430,10 +2448,17 @@ function onMapSearchSubmit(){
   }
 
   toast(`Searching for "${q}"…`);
+  const controller = new AbortController();
+  const timeout = setTimeout(()=> controller.abort(), 8000);
   fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`, {
-    headers: { 'Accept-Language': 'en' }
+    headers: { 'Accept-Language': 'en' },
+    signal: controller.signal,
   })
-    .then(res => res.json())
+    .then(res => {
+      clearTimeout(timeout);
+      if(!res.ok) throw new Error('bad status ' + res.status);
+      return res.json();
+    })
     .then(results => {
       if(results && results.length > 0){
         const r = results[0];
@@ -2444,7 +2469,9 @@ function onMapSearchSubmit(){
         toast(`No location found for "${q}".`);
       }
     })
-    .catch(()=>{
+    .catch((err)=>{
+      clearTimeout(timeout);
+      console.error('Map search failed:', err);
       toast('Search failed — check your connection.');
     });
 }
