@@ -1183,8 +1183,8 @@
   }
   .map-bottom-sheet{
     position:absolute;
-    bottom:14px; left:14px; right:14px;
-    z-index:1500;
+    bottom:80px; left:14px; right:14px;
+    z-index:2100;
     display:none;
   }
   .map-bottom-sheet.show{ display:block; }
@@ -1610,6 +1610,24 @@ const state = {
 
 let mapGL = null;
 let mapMarkers = [];
+
+/* Temporary, non-persisted points of interest shown after a broad area search
+   (e.g. searching "KL") — separate from PLACES, which are real biteScout
+   listings someone has actually vouched for. Cleared/replaced on each new
+   broad search. Uses Overpass API (OpenStreetMap's free POI query engine) —
+   no API key, same free/open stack as the rest of the map. */
+let DISCOVERED_PLACES = [];
+let discoveredMarkers = [];
+
+const POI_CATEGORY_MAP = {
+  mall: { label:'Shopping mall', icon:'🏬', kind:'place' },
+  supermarket: { label:'Supermarket', icon:'🛒', kind:'place' },
+  convenience: { label:'Convenience store', icon:'🏪', kind:'place' },
+  fuel: { label:'Gas station', icon:'⛽', kind:'place' },
+  restaurant: { label:'Restaurant', icon:'🍽️', kind:'food' },
+  cafe: { label:'Cafe', icon:'☕', kind:'food' },
+  fast_food: { label:'Fast food', icon:'🍔', kind:'food' },
+};
 
 const CAPS = { guest: { saves: 8, connections: 5 } };
 const APP_VERSION = 'v0.6 (prototype)'; // bump alongside sw.js CACHE_NAME when meaningful changes ship
@@ -2221,9 +2239,9 @@ function renderMap(){
       </div>
 
       <div class="map-floating-filter">
-        <button class="${state.mapFilter==='all'?'active':''}" onclick="setMapFilter('all')">All</button>
-        <button class="${state.mapFilter==='food'?'active':''}" onclick="setMapFilter('food')">${icon('utensils',{size:13})} Food</button>
-        <button class="${state.mapFilter==='place'?'active':''}" onclick="setMapFilter('place')">${icon('map-pin',{size:13})} Places</button>
+        <button data-filter="all" class="${state.mapFilter==='all'?'active':''}" onclick="setMapFilter('all')">All</button>
+        <button data-filter="food" class="${state.mapFilter==='food'?'active':''}" onclick="setMapFilter('food')">${icon('utensils',{size:13})} Food</button>
+        <button data-filter="place" class="${state.mapFilter==='place'?'active':''}" onclick="setMapFilter('place')">${icon('map-pin',{size:13})} Places</button>
         <select class="map-sort-select" onchange="setMapSort(this.value)">
           ${sortOptions.map(o=>`<option value="${o.val}" ${state.mapSort===o.val?'selected':''}>Sort: ${o.label}</option>`).join('')}
         </select>
@@ -2301,6 +2319,8 @@ function initMap(savedList){
     }
     mapMarkers = [];
     renderMapMarkers(savedList);
+    discoveredMarkers = [];
+    renderDiscoveredMarkers();
   });
 }
 
@@ -2339,13 +2359,26 @@ function renderMapMarkers(savedList){
    tap the card itself to open the full-screen detail view. */
 function mapBottomSheetHtml(p){
   if(!p) return '';
-  const saved = state.savedPlaces.includes(p.id);
   const tint = p.kind==='food' ? '#FFE1C2' : '#D7EDF8';
   let distText = '';
   if(state.userLocation){
     const d = distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng);
     distText = ' · ' + formatDistance(d);
   }
+  if(p.discovered){
+    return `
+      <div class="map-sheet-card" onclick="openMapPlaceDetail('${p.id}')">
+        <div class="map-sheet-photo" style="background:${tint};">${p.icon}</div>
+        <div class="map-sheet-info">
+          <div class="map-sheet-name">${p.name}</div>
+          <div class="map-sheet-meta">${p.cat} · Not yet on biteScout${distText}</div>
+        </div>
+        <button class="map-sheet-save" onclick="event.stopPropagation(); addDiscoveredPlace('${p.id}');" title="Add to biteScout">
+          ${icon('plus',{size:16})}
+        </button>
+      </div>`;
+  }
+  const saved = state.savedPlaces.includes(p.id);
   return `
     <div class="map-sheet-card" onclick="openMapPlaceDetail('${p.id}')">
       <div class="map-sheet-photo" style="background:${tint};">${p.icon}</div>
@@ -2363,7 +2396,7 @@ function mapBottomSheetHtml(p){
    render()), so the map's pan/zoom/rotation is never disturbed by browsing pins. */
 function selectMapPlace(id){
   state.selectedMapPlaceId = id;
-  const p = PLACES.find(x=>x.id===id);
+  const p = findAnyPlace(id);
   const sheet = document.getElementById('mapBottomSheet');
   const legend = document.getElementById('mapLegend');
   if(sheet && p){
@@ -2382,10 +2415,33 @@ function deselectMapPlace(){
 }
 
 function openMapPlaceDetail(id){
-  const p = PLACES.find(x=>x.id===id);
+  const p = findAnyPlace(id);
   if(!p) return;
-  document.getElementById('mapDetailBody').innerHTML = placeCardHtml(p);
+  document.getElementById('mapDetailBody').innerHTML = p.discovered ? discoveredPlaceDetailHtml(p) : placeCardHtml(p);
   document.getElementById('mapDetailScreen').classList.remove('hide');
+}
+
+function discoveredPlaceDetailHtml(p){
+  let distPill = '';
+  if(state.userLocation){
+    const d = distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng);
+    distPill = `<span class="distance-pill">${formatDistance(d)}</span>`;
+  }
+  return `
+    <div class="place-card">
+      <div class="place-photo">${p.icon}</div>
+      <div class="place-top">
+        <div>
+          <span class="kind-pill ${p.kind}">${p.kind==='food'?'Food':'Place'}</span>${distPill}
+          <div class="place-name">${p.name}</div>
+          <div class="place-meta">${p.cat}</div>
+        </div>
+      </div>
+      <div class="field-locked" style="margin:10px 0;">Found on OpenStreetMap — not a biteScout listing yet. Add it to start tracking real visits and reviews.</div>
+      <div class="place-actions">
+        <button class="btn btn-primary" onclick="addDiscoveredPlace('${p.id}')">${icon('plus',{size:13})} Add to biteScout</button>
+      </div>
+    </div>`;
 }
 
 function closeMapPlaceDetail(){
@@ -2462,9 +2518,18 @@ function onMapSearchSubmit(){
     .then(results => {
       if(results && results.length > 0){
         const r = results[0];
-        state.mapView = { center: [parseFloat(r.lat), parseFloat(r.lon)], zoom: 12, bearing: 0 };
+        const lat = parseFloat(r.lat), lon = parseFloat(r.lon);
+        state.mapView = { center: [lat, lon], zoom: 14, bearing: 0 };
         toast('Showing ' + r.display_name.split(',')[0]);
-        render();
+        if(mapGL){
+          // Map is already live — just move the camera, don't tear down and rebuild
+          // the whole map (that re-fetches the style/tiles and re-inits WebGL, which
+          // is what was causing the lag).
+          mapGL.flyTo({ center: [lon, lat], zoom: 14, essential: true });
+        } else {
+          render();
+        }
+        fetchNearbyPOIs(lat, lon);
       } else {
         toast(`No location found for "${q}".`);
       }
@@ -2476,12 +2541,106 @@ function onMapSearchSubmit(){
     });
 }
 
+/* Queries Overpass for named malls, supermarkets, convenience stores, gas
+   stations, restaurants and cafes near a searched point. Best-effort: if it
+   fails or times out, the geocoded location search above still already
+   worked, so this failing silently-ish is acceptable — it's a bonus layer. */
+function fetchNearbyPOIs(lat, lon){
+  const query = `[out:json][timeout:10];(
+    node["shop"="mall"](around:3000,${lat},${lon});
+    node["shop"="supermarket"](around:2000,${lat},${lon});
+    node["shop"="convenience"](around:1500,${lat},${lon});
+    node["amenity"="fuel"](around:3000,${lat},${lon});
+    node["amenity"="restaurant"](around:1500,${lat},${lon});
+    node["amenity"="cafe"](around:1500,${lat},${lon});
+  );out center 30;`;
+
+  fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    body: 'data=' + encodeURIComponent(query),
+  })
+    .then(res => { if(!res.ok) throw new Error('bad status ' + res.status); return res.json(); })
+    .then(data => {
+      const named = (data.elements || []).filter(e => e.tags && e.tags.name);
+      DISCOVERED_PLACES = named.slice(0, 25).map(e => {
+        const catKey = e.tags.shop || e.tags.amenity;
+        const meta = POI_CATEGORY_MAP[catKey] || { label: catKey || 'Place', icon: '📍', kind: 'place' };
+        return {
+          id: 'poi-' + e.id,
+          name: e.tags.name,
+          area: '',
+          cat: meta.label,
+          kind: meta.kind,
+          icon: meta.icon,
+          rating: 0,
+          tags: [],
+          link: null,
+          lat: e.lat,
+          lng: e.lon,
+          discovered: true,
+        };
+      });
+      renderDiscoveredMarkers();
+    })
+    .catch(err => {
+      console.error('Nearby POI search failed:', err);
+    });
+}
+
+function renderDiscoveredMarkers(){
+  if(!mapGL) return;
+  discoveredMarkers.forEach(m=> m.remove());
+  discoveredMarkers = [];
+  DISCOVERED_PLACES.forEach(p=>{
+    const el = document.createElement('div');
+    el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#fff;border:2.5px dashed #9CA3AF;cursor:pointer;';
+    el.addEventListener('click', function(e){
+      e.stopPropagation();
+      selectMapPlace(p.id);
+    });
+    const marker = new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(mapGL);
+    discoveredMarkers.push(marker);
+  });
+}
+
+/* A selected map pin can be either a real, saved biteScout place or a
+   temporary discovered POI — this looks in both places. */
+function findAnyPlace(id){
+  return PLACES.find(p=>p.id===id) || DISCOVERED_PLACES.find(p=>p.id===id);
+}
+
+/* Promotes a discovered POI into a real biteScout place — no rating is
+   fabricated (stays 0/unrated) since biteScout's whole premise is trust from
+   real visits, not assumed defaults. */
+function addDiscoveredPlace(id){
+  const p = DISCOVERED_PLACES.find(x=>x.id===id);
+  if(!p) return;
+  const newPlace = { id:p.id, name:p.name, area:p.area, cat:p.cat, kind:p.kind, icon:p.icon, rating:0, tags:[], link:null, lat:p.lat, lng:p.lng };
+  PLACES.push(newPlace);
+  DISCOVERED_PLACES = DISCOVERED_PLACES.filter(x=>x.id!==id);
+  if(!state.savedPlaces.includes(newPlace.id)) state.savedPlaces.push(newPlace.id);
+  syncUserData();
+  toast(newPlace.name + ' added to biteScout!');
+  renderMapMarkers(currentMapPlaceList());
+  renderDiscoveredMarkers();
+  selectMapPlace(newPlace.id);
+  const detailScreen = document.getElementById('mapDetailScreen');
+  if(detailScreen && !detailScreen.classList.contains('hide')){
+    document.getElementById('mapDetailBody').innerHTML = placeCardHtml(newPlace);
+  }
+}
+
 function onLocateMeClick(){
   toast('Finding your location…');
   requestUserLocation(()=>{
     if(state.locationStatus === 'granted'){
-      state.mapView = null; // reset so the map recenters on the fresh location
       toast('Location found — centering map.');
+      if(mapGL && state.userLocation){
+        state.mapView = { center: [state.userLocation.lat, state.userLocation.lng], zoom: 14, bearing: 0 };
+        mapGL.flyTo({ center: [state.userLocation.lng, state.userLocation.lat], zoom: 14, essential: true });
+        return;
+      }
+      state.mapView = null;
     } else if(state.locationStatus === 'denied'){
       toast('Location permission denied. Enable it in your browser settings to use this.');
     } else {
@@ -2493,12 +2652,24 @@ function onLocateMeClick(){
 
 function setMapFilter(f){
   state.mapFilter = f;
-  state.mapView = null; // let it reframe when filter changes which pins show
+  if(mapGL && state.tab === 'map'){
+    // Just refresh which pins show — no need to tear down and rebuild the whole map.
+    renderMapMarkers(currentMapPlaceList());
+    document.querySelectorAll('.map-floating-filter button[data-filter]').forEach(b=>{
+      b.classList.toggle('active', b.dataset.filter === f);
+    });
+    return;
+  }
+  state.mapView = null;
   render();
 }
 
 function setMapSort(val){
   state.mapSort = (val === 'recommended') ? 'recommended' : parseFloat(val);
+  if(mapGL && state.tab === 'map'){
+    renderMapMarkers(currentMapPlaceList());
+    return;
+  }
   render();
 }
 
@@ -2507,8 +2678,18 @@ function focusPlaceOnMap(placeId){
   if(!place) return;
   state.mapFilter = 'all'; // make sure the pin isn't hidden by a food/place filter
   state.mapView = { center:[place.lat, place.lng], zoom:16, bearing:0 };
-  state.focusPlaceId = placeId;
-  setTab('map');
+
+  if(state.tab === 'map' && mapGL){
+    mapGL.flyTo({ center: [place.lng, place.lat], zoom: 16, essential: true });
+    renderMapMarkers(currentMapPlaceList());
+    document.querySelectorAll('.map-floating-filter button[data-filter]').forEach(b=>{
+      b.classList.toggle('active', b.dataset.filter === 'all');
+    });
+    selectMapPlace(placeId);
+  } else {
+    state.focusPlaceId = placeId;
+    setTab('map');
+  }
 }
 
 function renderDiary(){
