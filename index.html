@@ -1620,14 +1620,33 @@ let DISCOVERED_PLACES = [];
 let discoveredMarkers = [];
 
 const POI_CATEGORY_MAP = {
-  mall: { label:'Shopping mall', icon:'🏬', kind:'place' },
-  supermarket: { label:'Supermarket', icon:'🛒', kind:'place' },
-  convenience: { label:'Convenience store', icon:'🏪', kind:'place' },
-  fuel: { label:'Gas station', icon:'⛽', kind:'place' },
-  restaurant: { label:'Restaurant', icon:'🍽️', kind:'food' },
-  cafe: { label:'Cafe', icon:'☕', kind:'food' },
-  fast_food: { label:'Fast food', icon:'🍔', kind:'food' },
+  mall: { label:'Shopping mall', icon:'🏬', kind:'place', group:'interest' },
+  supermarket: { label:'Supermarket', icon:'🛒', kind:'place', group:'interest' },
+  convenience: { label:'Convenience store', icon:'🏪', kind:'place', group:'interest' },
+  restaurant: { label:'Restaurant', icon:'🍽️', kind:'food', group:'interest' },
+  cafe: { label:'Cafe', icon:'☕', kind:'food', group:'interest' },
+  fast_food: { label:'Fast food', icon:'🍔', kind:'food', group:'interest' },
+  zoo: { label:'Zoo', icon:'🦁', kind:'place', group:'interest' },
+  museum: { label:'Museum', icon:'🏛️', kind:'place', group:'interest' },
+  park: { label:'Park', icon:'🌳', kind:'place', group:'interest' },
+  garden: { label:'Garden', icon:'🌳', kind:'place', group:'interest' },
+  fuel: { label:'Gas station', icon:'⛽', kind:'place', group:'utility' },
+  police: { label:'Police station', icon:'🚓', kind:'place', group:'utility' },
+  hospital: { label:'Hospital', icon:'🏥', kind:'place', group:'utility' },
+  clinic: { label:'Clinic', icon:'⚕️', kind:'place', group:'utility' },
 };
+
+/* Classic teardrop map-pin shape (matches Harris's reference image) — used for
+   every pin on the map. anchor:'bottom' must be set on the Marker so the pin's
+   point (not its visual center) lands exactly on the coordinate. */
+function mapPinSvg(color, size){
+  size = size || 32;
+  const width = Math.round(size * 0.78);
+  return `<svg width="${width}" height="${size}" viewBox="0 0 24 32" style="display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35));">
+    <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 20 12 20s12-11 12-20c0-6.627-5.373-12-12-12z" fill="${color}"/>
+    <circle cx="12" cy="11.5" r="4.5" fill="#fff"/>
+  </svg>`;
+}
 
 const CAPS = { guest: { saves: 8, connections: 5 } };
 const APP_VERSION = 'v0.6 (prototype)'; // bump alongside sw.js CACHE_NAME when meaningful changes ship
@@ -2255,7 +2274,7 @@ function renderMap(){
 
       <div class="map-floating-bottom" id="mapLegend" style="${state.selectedMapPlaceId ? 'display:none;' : ''}">
         <span class="legend-dot" style="background:#FF8A00"></span>Food &nbsp;
-        <span class="legend-dot" style="background:#19A3DC"></span>Place &nbsp;·&nbsp; ${locNote}
+        <span class="legend-dot" style="background:#0F6DBE"></span>Place &nbsp;·&nbsp; ${locNote}
       </div>
     </div>`;
 
@@ -2287,7 +2306,7 @@ function initMap(savedList){
 
   mapGL = new maplibregl.Map({
     container: 'mapCanvas',
-    style: 'https://tiles.openfreemap.org/styles/positron', // free, no API key — clean, minimal, no 3D buildings, faster to load
+    style: 'https://tiles.openfreemap.org/styles/liberty', // full place/POI labels — Positron strips these, which is why only road names showed
     center: [center[1], center[0]], // MapLibre wants [lng, lat]
     zoom: zoom,
     bearing: bearing,
@@ -2309,6 +2328,19 @@ function initMap(savedList){
   mapGL.on('click', ()=> deselectMapPlace());
 
   mapGL.on('load', function(){
+    // Liberty includes 3D building data (fill-extrusion layers) for when a map is
+    // tilted. We keep the map locked flat (maxPitch above) and also hide these
+    // layers outright here, so their geometry never renders or costs anything —
+    // this keeps Liberty's full place/POI labels without the 3D performance hit.
+    try{
+      const styleLayers = mapGL.getStyle().layers || [];
+      styleLayers.forEach(layer => {
+        if(layer.type === 'fill-extrusion'){
+          mapGL.setLayoutProperty(layer.id, 'visibility', 'none');
+        }
+      });
+    }catch(e){ console.error('Could not hide 3D building layers', e); }
+
     if(state.userLocation){
       const el = document.createElement('div');
       el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#0F6DBE;border:3px solid #fff;box-shadow:0 0 0 2px rgba(15,109,190,0.35);';
@@ -2333,15 +2365,16 @@ function renderMapMarkers(savedList){
   mapMarkers = [];
 
   savedList.forEach(p=>{
-    const color = p.kind==='food' ? '#FF8A00' : '#19A3DC';
+    const color = p.kind==='food' ? '#FF8A00' : '#0F6DBE';
     const el = document.createElement('div');
-    el.style.cssText = `width:22px;height:22px;border-radius:50%;background:${color};border:2px solid #0F6DBE;box-shadow:0 1px 4px rgba(0,0,0,0.3);cursor:pointer;`;
+    el.style.cssText = 'cursor:pointer;';
+    el.innerHTML = mapPinSvg(color, 34);
     el.addEventListener('click', function(e){
       e.stopPropagation();
       selectMapPlace(p.id);
     });
 
-    const marker = new maplibregl.Marker({ element: el })
+    const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
       .setLngLat([p.lng, p.lat])
       .addTo(mapGL);
 
@@ -2359,13 +2392,13 @@ function renderMapMarkers(savedList){
    tap the card itself to open the full-screen detail view. */
 function mapBottomSheetHtml(p){
   if(!p) return '';
-  const tint = p.kind==='food' ? '#FFE1C2' : '#D7EDF8';
   let distText = '';
   if(state.userLocation){
     const d = distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng);
     distText = ' · ' + formatDistance(d);
   }
   if(p.discovered){
+    const tint = p.group === 'utility' ? '#FBE9E5' : '#DCE4EC';
     return `
       <div class="map-sheet-card" onclick="openMapPlaceDetail('${p.id}')">
         <div class="map-sheet-photo" style="background:${tint};">${p.icon}</div>
@@ -2378,6 +2411,7 @@ function mapBottomSheetHtml(p){
         </button>
       </div>`;
   }
+  const tint = p.kind==='food' ? '#FFE1C2' : '#D7EDF8';
   const saved = state.savedPlaces.includes(p.id);
   return `
     <div class="map-sheet-card" onclick="openMapPlaceDetail('${p.id}')">
@@ -2546,14 +2580,25 @@ function onMapSearchSubmit(){
    fails or times out, the geocoded location search above still already
    worked, so this failing silently-ish is acceptable — it's a bonus layer. */
 function fetchNearbyPOIs(lat, lon){
-  const query = `[out:json][timeout:10];(
-    node["shop"="mall"](around:3000,${lat},${lon});
-    node["shop"="supermarket"](around:2000,${lat},${lon});
-    node["shop"="convenience"](around:1500,${lat},${lon});
-    node["amenity"="fuel"](around:3000,${lat},${lon});
-    node["amenity"="restaurant"](around:1500,${lat},${lon});
-    node["amenity"="cafe"](around:1500,${lat},${lon});
-  );out center 30;`;
+  // nwr (node/way/relation) instead of just node — parks, hospitals, and museums
+  // are frequently mapped as areas in OSM, not single points, so node-only
+  // queries were missing most of them.
+  const query = `[out:json][timeout:12];(
+    nwr["shop"="mall"](around:3000,${lat},${lon});
+    nwr["shop"="supermarket"](around:2000,${lat},${lon});
+    nwr["shop"="convenience"](around:1500,${lat},${lon});
+    nwr["amenity"="restaurant"](around:1500,${lat},${lon});
+    nwr["amenity"="cafe"](around:1500,${lat},${lon});
+    nwr["amenity"="fast_food"](around:1500,${lat},${lon});
+    nwr["tourism"="zoo"](around:6000,${lat},${lon});
+    nwr["tourism"="museum"](around:5000,${lat},${lon});
+    nwr["leisure"="park"](around:3000,${lat},${lon});
+    nwr["leisure"="garden"](around:2000,${lat},${lon});
+    nwr["amenity"="fuel"](around:3000,${lat},${lon});
+    nwr["amenity"="police"](around:5000,${lat},${lon});
+    nwr["amenity"="hospital"](around:5000,${lat},${lon});
+    nwr["amenity"="clinic"](around:2000,${lat},${lon});
+  );out center 40;`;
 
   fetch('https://overpass-api.de/api/interpreter', {
     method: 'POST',
@@ -2562,9 +2607,13 @@ function fetchNearbyPOIs(lat, lon){
     .then(res => { if(!res.ok) throw new Error('bad status ' + res.status); return res.json(); })
     .then(data => {
       const named = (data.elements || []).filter(e => e.tags && e.tags.name);
-      DISCOVERED_PLACES = named.slice(0, 25).map(e => {
-        const catKey = e.tags.shop || e.tags.amenity;
-        const meta = POI_CATEGORY_MAP[catKey] || { label: catKey || 'Place', icon: '📍', kind: 'place' };
+      DISCOVERED_PLACES = named.slice(0, 40).map(e => {
+        const catKey = e.tags.shop || e.tags.amenity || e.tags.tourism || e.tags.leisure;
+        const meta = POI_CATEGORY_MAP[catKey] || { label: catKey || 'Place', icon: '📍', kind: 'place', group: 'interest' };
+        // Nodes give lat/lon directly; ways/relations give a center object instead.
+        const lat2 = e.lat !== undefined ? e.lat : (e.center ? e.center.lat : null);
+        const lon2 = e.lon !== undefined ? e.lon : (e.center ? e.center.lon : null);
+        if(lat2 == null || lon2 == null) return null;
         return {
           id: 'poi-' + e.id,
           name: e.tags.name,
@@ -2572,14 +2621,15 @@ function fetchNearbyPOIs(lat, lon){
           cat: meta.label,
           kind: meta.kind,
           icon: meta.icon,
+          group: meta.group,
           rating: 0,
           tags: [],
           link: null,
-          lat: e.lat,
-          lng: e.lon,
+          lat: lat2,
+          lng: lon2,
           discovered: true,
         };
-      });
+      }).filter(Boolean);
       renderDiscoveredMarkers();
     })
     .catch(err => {
@@ -2587,18 +2637,24 @@ function fetchNearbyPOIs(lat, lon){
     });
 }
 
+/* Discovered POIs are color-coded by group: dark navy for general points of
+   interest (malls, museums, zoos, restaurants...), red for utility/emergency
+   services (gas stations, police, hospital, clinic) — distinct from the
+   cobalt/orange used for the user's own saved biteScout places. */
 function renderDiscoveredMarkers(){
   if(!mapGL) return;
   discoveredMarkers.forEach(m=> m.remove());
   discoveredMarkers = [];
   DISCOVERED_PLACES.forEach(p=>{
+    const color = p.group === 'utility' ? '#BE4B33' : '#1B3A57';
     const el = document.createElement('div');
-    el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#fff;border:2.5px dashed #9CA3AF;cursor:pointer;';
+    el.style.cssText = 'cursor:pointer;';
+    el.innerHTML = mapPinSvg(color, 28);
     el.addEventListener('click', function(e){
       e.stopPropagation();
       selectMapPlace(p.id);
     });
-    const marker = new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(mapGL);
+    const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([p.lng, p.lat]).addTo(mapGL);
     discoveredMarkers.push(marker);
   });
 }
