@@ -10,8 +10,8 @@
 <link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <!-- Firebase (compat SDK — plain globals, no build step, matches the rest of this app) -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
@@ -351,8 +351,108 @@
   .brand-name{
     font-family:'Plus Jakarta Sans',sans-serif;
     font-weight:600;
-    font-size:19px;
+    font-size:22px;
     letter-spacing:0.2px;
+  }
+  .settings-gear{
+    background:var(--paper-dim);
+    border:none;
+    border-radius:50%;
+    width:34px;height:34px;
+    font-size:15px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+
+  /* ===== Settings overlay ===== */
+  .settings-screen{
+    position:fixed;
+    inset:0;
+    background:var(--paper);
+    z-index:9600;
+    display:flex;
+    flex-direction:column;
+    transition:opacity 0.3s ease, transform 0.3s ease;
+  }
+  .settings-screen.hide{
+    opacity:0;
+    pointer-events:none;
+    transform:translateY(12px);
+  }
+  .settings-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:calc(20px + env(safe-area-inset-top)) 20px 16px;
+    border-bottom:1px solid #E8E4DA;
+    flex-shrink:0;
+  }
+  .settings-title{
+    font-family:'Plus Jakarta Sans',sans-serif;
+    font-size:20px;
+    font-weight:700;
+    color:var(--coffee);
+  }
+  .settings-close{
+    background:var(--paper-dim);
+    border:none;
+    border-radius:50%;
+    width:32px;height:32px;
+    font-size:14px;
+    cursor:pointer;
+  }
+  .settings-body{
+    flex:1;
+    overflow-y:auto;
+    padding:18px 20px calc(28px + env(safe-area-inset-bottom));
+  }
+  .settings-section{
+    margin-bottom:22px;
+  }
+  .settings-section-title{
+    font-size:11px;
+    letter-spacing:1.2px;
+    text-transform:uppercase;
+    color:var(--leaf);
+    font-weight:700;
+    margin-bottom:8px;
+  }
+  .settings-row-note{
+    font-size:12.5px;
+    color:#6B7280;
+    line-height:1.5;
+  }
+
+  /* ===== Required nickname overlay (shown once, right after sign-up) ===== */
+  .nickname-screen{
+    position:fixed;
+    inset:0;
+    background:#fff;
+    z-index:9700;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:64px 28px calc(28px + env(safe-area-inset-bottom));
+    transition:opacity 0.35s ease;
+  }
+  .nickname-screen.hide{
+    opacity:0;
+    pointer-events:none;
+  }
+  .nickname-heading{
+    font-family:'Plus Jakarta Sans',sans-serif;
+    font-size:22px;
+    font-weight:700;
+    color:var(--coffee);
+    text-align:center;
+    margin-top:18px;
+  }
+  .nickname-sub{
+    font-size:13px;
+    color:#6B7280;
+    text-align:center;
+    margin-top:8px;
+    line-height:1.5;
   }
 
   /* ===== Upgrade banner ===== */
@@ -995,7 +1095,7 @@
     font-size:12.5px;
   }
 
-  .leaflet-map-container{
+  .map-canvas-container{
     height:58vh;
     min-height:380px;
     max-height:640px;
@@ -1016,7 +1116,7 @@
     height:100%;
     width:100%;
   }
-  .map-page .leaflet-map-container{
+  .map-page .map-canvas-container{
     height:100%;
     max-height:none;
     min-height:0;
@@ -1076,11 +1176,11 @@
     bottom:80px;
     right:14px;
   }
-  .map-page .leaflet-bottom.leaflet-left{
+  .map-page .maplibregl-ctrl-bottom-left{
     bottom:80px;
     left:14px;
   }
-  .map-page .leaflet-control-zoom{
+  .map-page .maplibregl-ctrl-group{
     border-radius:var(--r-md) !important;
     overflow:hidden;
     box-shadow:0 2px 8px rgba(0,0,0,0.25) !important;
@@ -1132,7 +1232,7 @@
     backdrop-filter:blur(4px);
     margin-bottom:0;
   }
-  .leaflet-map-container .leaflet-container{
+  .map-canvas-container .maplibregl-map{
     font-family:'Plus Jakarta Sans', sans-serif;
   }
   .locate-btn{
@@ -1187,6 +1287,18 @@
   .place-popup .pp-btn.diary{
     background:var(--paper-dim);
     color:var(--coffee);
+  }
+  .discover-action-row{
+    display:flex;
+    gap:8px;
+    margin-bottom:12px;
+  }
+  .discover-action-row .nearby-toggle,
+  .discover-action-row .people-add-toggle{
+    flex:1;
+    justify-content:center;
+    margin-bottom:0;
+    white-space:nowrap;
   }
   .nearby-toggle{
     display:flex;
@@ -1261,10 +1373,33 @@
   <button class="onboarding-next" id="onboardingNextBtn" onclick="onboardingNext()">Next</button>
 </div>
 
+<div class="settings-screen hide" id="settingsScreen">
+  <div class="settings-header">
+    <div class="settings-title">Settings</div>
+    <button class="settings-close" onclick="closeSettings()">✕</button>
+  </div>
+  <div class="settings-body" id="settingsBody"></div>
+</div>
+
+<div class="nickname-screen hide" id="nicknameScreen">
+  <div class="welcome-logo-wrap">
+    <img src="splash-logo.png" alt="biteScout">
+  </div>
+  <div class="nickname-heading">What should we call you?</div>
+  <p class="nickname-sub">Pick a name other biteScout members will see. It needs to be unique.</p>
+  <div class="welcome-spacer"></div>
+  <div class="welcome-actions">
+    <input class="welcome-input" id="nicknameInput" type="text" placeholder="Your name or nickname" maxlength="24">
+    <div class="welcome-auth-error" id="nicknameError"></div>
+    <button class="welcome-btn-primary" id="btnNicknameSubmit" onclick="handleNicknameSubmit()">Continue</button>
+  </div>
+</div>
+
 <div class="phone" id="phoneShell">
   <div class="topbar" id="topbar">
     <div class="brand-row">
       <div id="brandArea"></div>
+      <button class="settings-gear" id="settingsGearBtn" onclick="openSettings()" title="Settings" style="display:none;">⚙️</button>
     </div>
     <div id="upgradeBanner"></div>
   </div>
@@ -1370,10 +1505,11 @@ const state = {
   onboardingIndex: 0,
 };
 
-let leafletMap = null;
-let leafletMarkers = [];
+let mapGL = null;
+let mapMarkers = [];
 
 const CAPS = { guest: { saves: 8, connections: 5 } };
+const APP_VERSION = 'v0.6 (prototype)'; // bump alongside sw.js CACHE_NAME when meaningful changes ship
 
 /* ============ GEOLOCATION ============ */
 function requestUserLocation(onDone){
@@ -1521,12 +1657,15 @@ function renderBanner(){
 function renderBrandArea(){
   const el = document.getElementById('brandArea');
   const topbar = document.getElementById('topbar');
+  const gear = document.getElementById('settingsGearBtn');
   if(state.tab !== 'discover'){
     el.innerHTML = '';
     topbar.classList.add('topbar-compact');
+    if(gear) gear.style.display = 'none';
     return;
   }
   topbar.classList.remove('topbar-compact');
+  if(gear) gear.style.display = '';
   const displayName = isGuest() ? state.guestDisplayId : (state.profileName || 'Harris');
   el.innerHTML = `
     <div class="brand">
@@ -1611,7 +1750,7 @@ function applyWallpaper(shell){
 }
 
 function renderDiscover(){
-  let html = `<div class="section-eyebrow">Browse by</div><div class="section-title">Discover</div>`;
+  let html = `<div class="section-title" style="margin-top:-6px;margin-bottom:12px;">Discover</div>`;
 
   html += `
     <div class="search-bar">
@@ -1640,9 +1779,11 @@ function renderDiscoverBody(){
       <button class="${state.discoverFilter==='place'?'active':''}" onclick="setDiscoverFilter('place')">📍 Places</button>
     </div>`;
 
-  html += `<button class="nearby-toggle ${state.nearbyMode?'active':''}" onclick="toggleNearbyMode()">📍 ${state.nearbyMode ? 'Showing nearest first' : 'Search around me'}</button>`;
-
-  html += `<button class="people-add-toggle" style="background:var(--paper-dim);color:var(--coffee);" onclick="toggleDiscoverFilters()">⚙ ${state.discoverFiltersOpen ? 'Hide filters' : 'Rating & sort'}</button>`;
+  html += `
+    <div class="discover-action-row">
+      <button class="nearby-toggle ${state.nearbyMode?'active':''}" onclick="toggleNearbyMode()">📍 ${state.nearbyMode ? 'Nearest first' : 'Search around me'}</button>
+      <button class="people-add-toggle" style="background:var(--paper-dim);color:var(--coffee);" onclick="toggleDiscoverFilters()">⚙ ${state.discoverFiltersOpen ? 'Hide filters' : 'Rating & sort'}</button>
+    </div>`;
 
   if(state.discoverFiltersOpen){
     html += `
@@ -1934,11 +2075,7 @@ function capToast(kind){
 }
 
 function renderMap(){
-  const savedAll = PLACES.filter(p=>state.savedPlaces.includes(p.id));
-  const savedList = savedAll
-    .filter(p=> state.mapFilter==='all' || p.kind===state.mapFilter)
-    .filter(p=> state.mapSort==='recommended' || p.rating >= state.mapSort)
-    .filter(p=> state.mapSearchQuery.trim().length===0 || p.name.toLowerCase().includes(state.mapSearchQuery.trim().toLowerCase()));
+  const savedList = currentMapPlaceList();
 
   // Still waiting on the initial location request (kicked off at app init) —
   // show a lightweight loading state instead of flashing the Melaka default center.
@@ -1971,13 +2108,13 @@ function renderMap(){
   let html = `
     <div class="map-page">
       <div class="map-floating-search">
-        <span class="search-ic">🔎</span>
-        <input id="mapSearchInput" placeholder="Search your saved places..." value="${state.mapSearchQuery}" oninput="onMapSearchInput(this.value)">
-        <span id="mapSearchClearWrap">${state.mapSearchQuery ? `<button class="search-clear" onclick="onMapSearchInput('')">✕</button>` : ''}</span>
+        <span class="search-ic" onclick="onMapSearchSubmit()" style="cursor:pointer;">🔎</span>
+        <input id="mapSearchInput" placeholder="Search places or type a location..." value="${state.mapSearchQuery}" oninput="onMapSearchTyping(this.value)" onkeydown="if(event.key==='Enter'){ event.preventDefault(); onMapSearchSubmit(); }">
+        <span id="mapSearchClearWrap">${state.mapSearchQuery ? `<button class="search-clear" onclick="onMapSearchClear()">✕</button>` : ''}</span>
       </div>
 
-      <div class="leaflet-map-container">
-        <div id="leafletMap" style="width:100%;height:100%;"></div>
+      <div class="map-canvas-container">
+        <div id="mapCanvas" style="width:100%;height:100%;"></div>
       </div>
 
       <div class="map-floating-filter">
@@ -1999,59 +2136,78 @@ function renderMap(){
       </div>
     </div>`;
 
-  // Defer Leaflet init until after this HTML is actually in the DOM
-  setTimeout(()=> initLeafletMap(savedList), 0);
+  // Defer map init until after this HTML is actually in the DOM
+  setTimeout(()=> initMap(savedList), 0);
 
   return html;
 }
 
-function initLeafletMap(savedList){
-  const container = document.getElementById('leafletMap');
-  if(!container || typeof L === 'undefined') return;
+function initMap(savedList){
+  const container = document.getElementById('mapCanvas');
+  if(!container || typeof maplibregl === 'undefined') return;
 
-  // Determine center: preserve last view > user location > Melaka default
+  // This app replaces the whole tab's HTML on every render(), which destroys the
+  // old map container element. MapLibre uses WebGL though (unlike Leaflet's plain
+  // Canvas/DOM), and browsers only allow a handful of live WebGL contexts per page —
+  // so the previous instance must be explicitly disposed, or a long session could
+  // eventually stop being able to create new ones.
+  if(mapGL){
+    mapGL.remove();
+    mapGL = null;
+  }
+
+  // Determine center/zoom/bearing: preserve last view > user location > Melaka default
   const defaultCenter = [2.1896, 102.2501]; // Melaka town, where most seed places are
   let center = state.mapView ? state.mapView.center : (state.userLocation ? [state.userLocation.lat, state.userLocation.lng] : defaultCenter);
   let zoom = state.mapView ? state.mapView.zoom : (state.userLocation ? 14 : 12);
+  let bearing = state.mapView ? (state.mapView.bearing || 0) : 0;
 
-  leafletMap = L.map('leafletMap', { zoomControl:false }).setView(center, zoom);
-  L.control.zoom({ position:'bottomleft' }).addTo(leafletMap);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(leafletMap);
-
-  leafletMap.on('moveend', ()=>{
-    const c = leafletMap.getCenter();
-    state.mapView = { center: [c.lat, c.lng], zoom: leafletMap.getZoom() };
+  mapGL = new maplibregl.Map({
+    container: 'mapCanvas',
+    style: 'https://tiles.openfreemap.org/styles/liberty', // free, no API key — clean vector cartography
+    center: [center[1], center[0]], // MapLibre wants [lng, lat]
+    zoom: zoom,
+    bearing: bearing,
+    pitch: 0,
+    attributionControl: false,
   });
 
-  // "You are here" marker
-  if(state.userLocation){
-    L.circleMarker([state.userLocation.lat, state.userLocation.lng], {
-      radius: 8, fillColor:'#3E6E8E', fillOpacity:1, color:'#fff', weight:3
-    }).addTo(leafletMap).bindPopup('You are here');
-  }
+  mapGL.addControl(new maplibregl.AttributionControl({ compact: true }));
+  // Rotation is native here — two-finger twist on mobile, right-click-drag on desktop.
+  // The compass button resets bearing back to north with one tap.
+  mapGL.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: false }), 'bottom-left');
 
-  leafletMarkers = [];
-  renderMapMarkers(savedList);
+  mapGL.on('moveend', ()=>{
+    const c = mapGL.getCenter();
+    state.mapView = { center: [c.lat, c.lng], zoom: mapGL.getZoom(), bearing: mapGL.getBearing() };
+  });
+
+  mapGL.on('load', function(){
+    if(state.userLocation){
+      const el = document.createElement('div');
+      el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#3E6E8E;border:3px solid #fff;box-shadow:0 0 0 2px rgba(62,110,142,0.35);';
+      new maplibregl.Marker({ element: el })
+        .setLngLat([state.userLocation.lng, state.userLocation.lat])
+        .setPopup(new maplibregl.Popup({ offset: 12 }).setText('You are here'))
+        .addTo(mapGL);
+    }
+    mapMarkers = [];
+    renderMapMarkers(savedList);
+  });
 }
 
-/* Adds/refreshes place pins on the already-existing Leaflet map without
-   recreating the map itself — used both on first load and when the map
-   search box filters the pin list, so pan/zoom and the search input are
-   never disturbed mid-typing. */
+/* Adds/refreshes place pins on the already-existing map without recreating it —
+   used both on first load and when the search box jumps/filters, so pan/zoom/
+   rotation and the search input are never disturbed mid-typing. */
 function renderMapMarkers(savedList){
-  if(!leafletMap) return;
-  leafletMarkers.forEach(m=> leafletMap.removeLayer(m));
-  leafletMarkers = [];
+  if(!mapGL) return;
+  mapMarkers.forEach(m=> m.remove());
+  mapMarkers = [];
 
   savedList.forEach(p=>{
     const color = p.kind==='food' ? '#FFA726' : '#F0A824';
-    const marker = L.circleMarker([p.lat, p.lng], {
-      radius: 9, fillColor: color, fillOpacity: 1, color:'#0D4D4D', weight:2
-    }).addTo(leafletMap);
+    const el = document.createElement('div');
+    el.style.cssText = `width:22px;height:22px;border-radius:50%;background:${color};border:2px solid #0D4D4D;box-shadow:0 1px 4px rgba(0,0,0,0.3);cursor:pointer;`;
 
     let distText = '';
     if(state.userLocation){
@@ -2068,32 +2224,77 @@ function renderMapMarkers(savedList){
           <button class="pp-btn diary" onclick="setTab('diary')">📓 Diary</button>
         </div>
       </div>`;
-    marker.bindPopup(popupHtml);
+
+    const marker = new maplibregl.Marker({ element: el })
+      .setLngLat([p.lng, p.lat])
+      .setPopup(new maplibregl.Popup({ offset: 16 }).setHTML(popupHtml))
+      .addTo(mapGL);
 
     if(state.focusPlaceId === p.id){
-      setTimeout(()=> marker.openPopup(), 300);
+      setTimeout(()=> marker.togglePopup(), 300);
     }
 
-    leafletMarkers.push(marker);
+    mapMarkers.push(marker);
   });
 
   state.focusPlaceId = null; // consume it so it doesn't reopen on later re-renders
 }
 
-/* Filters the map's pins by name as the user types, without a full render()
-   (which would tear down and rebuild the Leaflet map and dismiss the keyboard). */
-function onMapSearchInput(val){
+function currentMapPlaceList(){
+  return PLACES.filter(p=>state.savedPlaces.includes(p.id))
+    .filter(p=> state.mapFilter==='all' || p.kind===state.mapFilter)
+    .filter(p=> state.mapSort==='recommended' || p.rating >= state.mapSort);
+}
+
+function onMapSearchTyping(val){
   state.mapSearchQuery = val;
   const clearWrap = document.getElementById('mapSearchClearWrap');
   if(clearWrap){
-    clearWrap.innerHTML = val ? `<button class="search-clear" onclick="onMapSearchInput('')">✕</button>` : '';
+    clearWrap.innerHTML = val ? `<button class="search-clear" onclick="onMapSearchClear()">✕</button>` : '';
   }
-  const savedAll = PLACES.filter(p=>state.savedPlaces.includes(p.id));
-  const filtered = savedAll
-    .filter(p=> state.mapFilter==='all' || p.kind===state.mapFilter)
-    .filter(p=> state.mapSort==='recommended' || p.rating >= state.mapSort)
-    .filter(p=> val.trim().length===0 || p.name.toLowerCase().includes(val.trim().toLowerCase()));
-  renderMapMarkers(filtered);
+}
+
+function onMapSearchClear(){
+  state.mapSearchQuery = '';
+  const input = document.getElementById('mapSearchInput');
+  if(input) input.value = '';
+  const clearWrap = document.getElementById('mapSearchClearWrap');
+  if(clearWrap) clearWrap.innerHTML = '';
+  renderMapMarkers(currentMapPlaceList());
+}
+
+/* Runs on Enter (or tapping the 🔎 icon). First checks if the query matches one
+   of your own saved places — if so, jumps straight to that pin. Otherwise treats
+   it as a place name (e.g. "Penang") and geocodes it via Nominatim, OpenStreetMap's
+   own free geocoding API — no API key or billing needed, unlike Google Places. */
+function onMapSearchSubmit(){
+  const q = state.mapSearchQuery.trim();
+  if(!q) return;
+
+  const savedMatch = PLACES.find(p=> state.savedPlaces.includes(p.id) && p.name.toLowerCase().includes(q.toLowerCase()));
+  if(savedMatch){
+    focusPlaceOnMap(savedMatch.id);
+    return;
+  }
+
+  toast(`Searching for "${q}"…`);
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`, {
+    headers: { 'Accept-Language': 'en' }
+  })
+    .then(res => res.json())
+    .then(results => {
+      if(results && results.length > 0){
+        const r = results[0];
+        state.mapView = { center: [parseFloat(r.lat), parseFloat(r.lon)], zoom: 12, bearing: 0 };
+        toast('Showing ' + r.display_name.split(',')[0]);
+        render();
+      } else {
+        toast(`No location found for "${q}".`);
+      }
+    })
+    .catch(()=>{
+      toast('Search failed — check your connection.');
+    });
 }
 
 function onLocateMeClick(){
@@ -2126,7 +2327,7 @@ function focusPlaceOnMap(placeId){
   const place = PLACES.find(p=>p.id===placeId);
   if(!place) return;
   state.mapFilter = 'all'; // make sure the pin isn't hidden by a food/place filter
-  state.mapView = { center:[place.lat, place.lng], zoom:16 };
+  state.mapView = { center:[place.lat, place.lng], zoom:16, bearing:0 };
   state.focusPlaceId = placeId;
   setTab('map');
 }
@@ -2412,22 +2613,12 @@ function renderMe(){
         <p style="font-size:12px;color:#6B7280;margin-bottom:12px;">Custom name, photo, bio, pinned places &amp; full stamp collection.</p>
         <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="setTier('user')">Preview User profile</button>
       </div>`;
+  } else if(!fbUser){
+    html += `
+      <div class="field-locked" style="margin-bottom:14px;">You're previewing what a User profile looks like — nothing here is saved. Create a real account from the welcome screen to unlock this for real.</div>`;
   } else {
     html += `
-      <div class="section-eyebrow">Display name</div>
-      <input id="nameInput" value="${state.profileName}" placeholder="Enter your name" oninput="state.profileName=this.value; syncUserData();" style="width:100%;padding:10px 12px;border-radius:var(--r-sm);border:1px solid #D8D8D8;font-family:inherit;font-size:13px;margin-bottom:14px;">
-    `;
-    if(fbUser){
-      html += `
-        <div class="section-eyebrow">Account</div>
-        <div class="place-card" style="margin-bottom:14px;">
-          <div style="font-size:12.5px;color:#6B7280;margin-bottom:10px;">Signed in as <strong style="color:var(--coffee);">${fbUser.email}</strong> · data syncs to your account</div>
-          <button class="btn btn-ghost" style="width:100%;justify-content:center;" onclick="handleSignOut()">Log out</button>
-        </div>`;
-    } else {
-      html += `
-        <div class="field-locked" style="margin-bottom:14px;">This is the demo User view — no Firebase account is signed in, so nothing here is saved. Log in from the welcome screen for a real, persistent account.</div>`;
-    }
+      <p class="settings-row-note" style="margin-bottom:14px;">Manage your name and account in <strong>Settings ⚙️</strong>, on the Discover tab.</p>`;
   }
 
   html += `
@@ -2435,6 +2626,90 @@ function renderMe(){
     <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:14px;" onclick="replayOnboarding()">🧭 Replay intro</button>`;
 
   return html;
+}
+
+function openSettings(){
+  const el = document.getElementById('settingsScreen');
+  if(!el) return;
+  document.getElementById('settingsBody').innerHTML = renderSettingsBody();
+  el.classList.remove('hide');
+}
+
+function closeSettings(){
+  const el = document.getElementById('settingsScreen');
+  if(el) el.classList.add('hide');
+}
+
+function renderSettingsBody(){
+  let html = '';
+
+  html += `<div class="settings-section">
+    <div class="settings-section-title">Profile</div>`;
+  if(!fbUser){
+    html += `<p class="settings-row-note">Create a real account from the welcome screen to set a name and save your data.</p>`;
+  } else {
+    html += `
+      <input id="settingsNameInput" value="${state.profileName}" placeholder="Your name" maxlength="24" style="width:100%;padding:10px 12px;border-radius:var(--r-sm);border:1px solid #D8D8D8;font-family:inherit;font-size:13px;margin-bottom:8px;">
+      <div class="welcome-auth-error" id="settingsNameError"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="handleSaveSettingsName()">Save name</button>`;
+  }
+  html += `</div>`;
+
+  html += `<div class="settings-section">
+    <div class="settings-section-title">Appearance</div>
+    <p class="settings-row-note">🎨 Theme customization is being reworked — coming back soon with a fresh look.</p>
+  </div>`;
+
+  html += `<div class="settings-section">
+    <div class="settings-section-title">Account</div>`;
+  if(fbUser){
+    html += `
+      <p class="settings-row-note" style="margin-bottom:10px;">Signed in as <strong style="color:var(--coffee);">${fbUser.email}</strong></p>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;" onclick="handleSignOut()">Log out</button>`;
+  } else {
+    html += `<p class="settings-row-note">You're browsing as a Guest — nothing is saved. Create a real account from the welcome screen to unlock full features.</p>`;
+  }
+  html += `</div>`;
+
+  html += `<div class="settings-section">
+    <div class="settings-section-title">About</div>
+    <p class="settings-row-note">biteScout — ${APP_VERSION}<br>Discover. Taste. Explore.</p>
+  </div>`;
+
+  return html;
+}
+
+function handleSaveSettingsName(){
+  const input = document.getElementById('settingsNameInput');
+  const errEl = document.getElementById('settingsNameError');
+  const raw = input.value.trim();
+  errEl.textContent = '';
+  if(!fbUser) return;
+  if(raw.length < 2 || raw.length > 24){ errEl.textContent = 'Name should be 2–24 characters.'; return; }
+  const lower = raw.toLowerCase();
+  if(lower === (state.profileName||'').trim().toLowerCase()){ toast('Name unchanged.'); return; }
+
+  db.collection('publicUsers').where('displayNameLower','==',lower).get().then(function(snap){
+    const takenByOther = snap.docs.some(d=> d.id !== fbUser.uid);
+    if(takenByOther){
+      errEl.textContent = 'That name is taken — please choose another.';
+      return;
+    }
+    state.profileName = raw;
+    db.collection('publicUsers').doc(fbUser.uid).set({
+      displayName: raw,
+      displayNameLower: lower,
+    }, { merge: true }).then(function(){
+      syncUserData();
+      toast('Name saved.');
+      renderBrandArea();
+      loadRealPeople();
+    }).catch(function(){
+      errEl.textContent = 'Could not save — check your connection.';
+    });
+  }).catch(function(){
+    errEl.textContent = 'Could not check name availability — check your connection.';
+  });
 }
 
 function onAccentHueInput(val){
@@ -2635,30 +2910,67 @@ function handleCreateAccount(){
   auth.createUserWithEmailAndPassword(email, password)
     .then(function(cred){
       // Fresh real account starts from a clean slate — not the Guest demo seed data.
-      return Promise.all([
-        db.collection('users').doc(cred.user.uid).set({
-          profileName: '',
-          savedPlaces: [],
-          connections: [],
-          blocked: [],
-          flaggedByMe: [],
-          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        }),
-        // Public-safe entry so this person can show up in others' People tab.
-        // Only a display name, saved count, and (once granted) rough location —
-        // never email/password. Name starts blank until they set one in Me.
-        db.collection('publicUsers').doc(cred.user.uid).set({
-          displayName: '',
-          savedCount: 0,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        })
-      ]);
+      // Note: publicUsers doc is created once a unique name is chosen, in handleNicknameSubmit().
+      return db.collection('users').doc(cred.user.uid).set({
+        profileName: '',
+        savedPlaces: [],
+        connections: [],
+        blocked: [],
+        flaggedByMe: [],
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
     })
-    .then(function(){ dismissWelcomeScreen(); })
+    .then(function(){ showNicknameStep(); })
     .catch(function(err){
       setWelcomeButtonsLoading(false);
       setWelcomeAuthError(friendlyAuthError(err));
     });
+}
+
+function showNicknameStep(){
+  dismissWelcomeScreen();
+  setWelcomeButtonsLoading(false);
+  const el = document.getElementById('nicknameScreen');
+  if(el) el.classList.remove('hide');
+}
+
+function handleNicknameSubmit(){
+  const input = document.getElementById('nicknameInput');
+  const errEl = document.getElementById('nicknameError');
+  const btn = document.getElementById('btnNicknameSubmit');
+  const raw = input.value.trim();
+  errEl.textContent = '';
+  if(raw.length < 2 || raw.length > 24){ errEl.textContent = 'Name should be 2–24 characters.'; return; }
+  if(!fbUser) return; // shouldn't happen — this screen only shows right after sign-up
+  const lower = raw.toLowerCase();
+  btn.disabled = true;
+  btn.textContent = 'Please wait…';
+
+  db.collection('publicUsers').where('displayNameLower','==',lower).get().then(function(snap){
+    if(!snap.empty){
+      btn.disabled = false;
+      btn.textContent = 'Continue';
+      errEl.textContent = 'That name is taken — please choose another.';
+      return;
+    }
+    state.profileName = raw;
+    return db.collection('publicUsers').doc(fbUser.uid).set({
+      displayName: raw,
+      displayNameLower: lower,
+      savedCount: 0,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }).then(function(){
+      syncUserData();
+      const el = document.getElementById('nicknameScreen');
+      if(el) el.classList.add('hide');
+      setTier('user');
+      loadRealPeople();
+    });
+  }).catch(function(){
+    btn.disabled = false;
+    btn.textContent = 'Continue';
+    errEl.textContent = 'Could not check name availability — check your connection.';
+  });
 }
 
 function handleSignIn(){
