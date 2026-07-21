@@ -2400,7 +2400,7 @@ function mapBottomSheetHtml(p){
     distText = ' · ' + formatDistance(d);
   }
   if(p.discovered){
-    const tint = p.group === 'utility' ? '#FBE9E5' : '#DCE4EC';
+    const tint = p.group === 'utility' ? '#FBE9E5' : '#E5E7EB';
     return `
       <div class="map-sheet-card" onclick="openMapPlaceDetail('${p.id}')">
         <div class="map-sheet-photo" style="background:${tint};">${p.icon}</div>
@@ -2587,7 +2587,7 @@ function onMapSearchSubmit(){
 let poiRefreshTimer = null;
 function scheduleNearbyPOIRefresh(){
   clearTimeout(poiRefreshTimer);
-  poiRefreshTimer = setTimeout(fetchNearbyPOIs, 900);
+  poiRefreshTimer = setTimeout(fetchNearbyPOIs, 500);
 }
 
 /* Always-on background layer of well-known nearby points of interest — shows
@@ -2596,17 +2596,27 @@ function scheduleNearbyPOIRefresh(){
    actual visible bounds. Un-adopted places never persist here permanently —
    this simply reflects "what's around right now"; only tapping "Add to
    biteScout" turns one into a real, permanent cobalt/orange biteScout place. */
+let poiFetchController = null;
 function fetchNearbyPOIs(){
   if(!mapGL) return;
 
   // Don't bother at very wide zoom levels — city/country view would return
   // thousands of results and just clutter the map (same convention real map
   // apps use: POI icons only appear once you're zoomed in reasonably close).
-  if(mapGL.getZoom() < 11){
+  // Zoomed in further than before too — a smaller area means a smaller,
+  // faster-to-process query for Overpass's shared free server.
+  if(mapGL.getZoom() < 13){
     DISCOVERED_PLACES = [];
     renderDiscoveredMarkers();
     return;
   }
+
+  // Cancel any still-in-flight previous request — otherwise a slow older
+  // response could land after a newer one and show stale pins for the
+  // wrong area.
+  if(poiFetchController) poiFetchController.abort();
+  poiFetchController = new AbortController();
+  const timeout = setTimeout(()=> poiFetchController.abort(), 10000);
 
   const b = mapGL.getBounds();
   const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
@@ -2614,7 +2624,7 @@ function fetchNearbyPOIs(){
   // nwr (node/way/relation) instead of just node — parks, hospitals, and museums
   // are frequently mapped as areas in OSM, not single points, so node-only
   // queries were missing most of them.
-  const query = `[out:json][timeout:12];(
+  const query = `[out:json][timeout:10];(
     nwr["shop"="mall"](${bbox});
     nwr["shop"="supermarket"](${bbox});
     nwr["shop"="convenience"](${bbox});
@@ -2629,16 +2639,17 @@ function fetchNearbyPOIs(){
     nwr["amenity"="police"](${bbox});
     nwr["amenity"="hospital"](${bbox});
     nwr["amenity"="clinic"](${bbox});
-  );out center 60;`;
+  );out center 50;`;
 
   fetch('https://overpass-api.de/api/interpreter', {
     method: 'POST',
     body: 'data=' + encodeURIComponent(query),
+    signal: poiFetchController.signal,
   })
-    .then(res => { if(!res.ok) throw new Error('bad status ' + res.status); return res.json(); })
+    .then(res => { clearTimeout(timeout); if(!res.ok) throw new Error('bad status ' + res.status); return res.json(); })
     .then(data => {
       const named = (data.elements || []).filter(e => e.tags && e.tags.name);
-      DISCOVERED_PLACES = named.slice(0, 60).map(e => {
+      DISCOVERED_PLACES = named.slice(0, 50).map(e => {
         const id = 'poi-' + e.id;
         if(PLACES.find(p=>p.id===id)) return null; // already adopted as a real biteScout place — skip, it renders as a saved pin instead
         const catKey = e.tags.shop || e.tags.amenity || e.tags.tourism || e.tags.leisure;
@@ -2666,11 +2677,14 @@ function fetchNearbyPOIs(){
       renderDiscoveredMarkers();
     })
     .catch(err => {
-      console.error('Nearby POI search failed:', err);
+      clearTimeout(timeout);
+      if(err.name !== 'AbortError'){
+        console.error('Nearby POI search failed:', err);
+      }
     });
 }
 
-/* Discovered POIs are color-coded by group: dark navy for general points of
+/* Discovered POIs are color-coded by group: light grey for general points of
    interest (malls, museums, zoos, restaurants...), red for utility/emergency
    services (gas stations, police, hospital, clinic) — distinct from the
    cobalt/orange used for the user's own saved biteScout places. */
@@ -2679,7 +2693,7 @@ function renderDiscoveredMarkers(){
   discoveredMarkers.forEach(m=> m.remove());
   discoveredMarkers = [];
   DISCOVERED_PLACES.forEach(p=>{
-    const color = p.group === 'utility' ? '#BE4B33' : '#1B3A57';
+    const color = p.group === 'utility' ? '#BE4B33' : '#9CA3AF';
     const el = document.createElement('div');
     el.style.cssText = 'cursor:pointer;';
     el.innerHTML = mapPinSvg(color, 28);
