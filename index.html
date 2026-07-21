@@ -1583,7 +1583,7 @@ const state = {
   customWallpaperUrl: null,
   profileName: '',
   guestDisplayId: 'Guest' + Math.floor(1000 + Math.random() * 9000),
-  savedPlaces: ['zoo-negara', 'jonker-market'],
+  savedPlaces: [],
   connections: [],
   blocked: [],
   flaggedByMe: [],   // place ids the current user has reported as closed/moved
@@ -1692,13 +1692,9 @@ function googleMapsDirectionsUrl(lat, lng){
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
 }
 
-const PLACES = [
-  {id:'zoo-negara', name:'Zoo Negara', area:'Ampang, KL', cat:'Attraction', kind:'place', icon:'🦁', rating:4.4, tags:['Family','Outdoor'], link:'https://www.zoonegaramalaysia.my', lat:3.2148, lng:101.7625},
-  {id:'jonker-market', name:'Jonker Street Night Market', area:'Melaka', cat:'Street Food', kind:'food', icon:'🏮', rating:4.6, tags:['Street Food','Evening'], link:null, lat:2.1958, lng:102.2464},
-  {id:'kopi-ah-chong', name:'Kedai Kopi Ah Chong', area:'Klebang, Melaka', cat:'Kopitiam', kind:'food', icon:'☕', rating:4.7, tags:['Breakfast','Local Fave'], link:null, lat:2.2114, lng:102.2050},
-  {id:'pantai-klebang', name:'Pantai Klebang', area:'Melaka', cat:'Beach', kind:'place', icon:'🌅', rating:4.2, tags:['Sunset','Chill'], link:null, lat:2.2102, lng:102.1946},
-  {id:'bukit-cina', name:'Bukit Cina', area:'Melaka', cat:'Historical', kind:'place', icon:'⛩️', rating:4.3, tags:['History','Quiet'], link:'https://en.wikipedia.org/wiki/Bukit_China', lat:2.1975, lng:102.2469},
-];
+/* Cleared for testing — Harris is adding real places himself from here on.
+   Structure kept as a reference: {id, name, area, cat, kind, icon, rating, tags, link, lat, lng} */
+const PLACES = [];
 
 /* Simulated Google Places search results — not yet in biteScout's own database.
    In production this would come from a backend call to the Google Places API. */
@@ -1966,7 +1962,9 @@ function renderDiscoverBody(){
   }
 
   if(filtered.length===0){
-    html += `<div class="empty-note">No ${state.discoverFilter==='all'?'':state.discoverFilter+' '}spots match these filters.</div>`;
+    html += PLACES.length===0
+      ? `<div class="empty-note">No places yet — search above to find and add your first spot.</div>`
+      : `<div class="empty-note">No ${state.discoverFilter==='all'?'':state.discoverFilter+' '}spots match these filters.</div>`;
   }
 
   filtered.forEach(p=> html += placeCardHtml(p));
@@ -3454,7 +3452,7 @@ function handleSignOut(){
   auth.signOut().then(function(){
     fbUser = null;
     state.profileName = '';
-    state.savedPlaces = ['zoo-negara', 'jonker-market'];
+    state.savedPlaces = [];
     state.connections = [];
     state.blocked = [];
     state.flaggedByMe = [];
