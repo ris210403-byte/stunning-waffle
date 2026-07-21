@@ -1696,15 +1696,10 @@ function googleMapsDirectionsUrl(lat, lng){
    Structure kept as a reference: {id, name, area, cat, kind, icon, rating, tags, link, lat, lng} */
 const PLACES = [];
 
-/* Simulated Google Places search results — not yet in biteScout's own database.
-   In production this would come from a backend call to the Google Places API. */
-const EXTERNAL_RESULTS = [
-  {ext_id:'g1', name:'Capitol Satay Celup', area:'Melaka', cat:'Satay Celup', kind:'food', icon:'🍢', rating:4.5, source:'Google Maps', lat:2.1943, lng:102.2489},
-  {ext_id:'g2', name:'A Famosa Fort', area:'Melaka', cat:'Historical Landmark', kind:'place', icon:'🏰', rating:4.6, source:'Google Maps', lat:2.1899, lng:102.2500},
-  {ext_id:'g3', name:'Low Yong Moh Pastry', area:'Melaka', cat:'Bakery', kind:'food', icon:'🥮', rating:4.3, source:'Google Maps', lat:2.1967, lng:102.2478},
-  {ext_id:'g4', name:'Taman Botanikal Melaka', area:'Ayer Keroh, Melaka', cat:'Nature Park', kind:'place', icon:'🌳', rating:4.1, source:'Google Maps', lat:2.2802, lng:102.2842},
-  {ext_id:'g5', name:"Nancy's Kitchen", area:'Melaka', cat:'Nyonya Restaurant', kind:'food', icon:'🍛', rating:4.4, source:'Google Maps', lat:2.1938, lng:102.2495},
-];
+/* Cleared for testing. In production this would come from a backend call to
+   the real Google Places API. Structure kept as reference:
+   {ext_id, name, area, cat, kind, icon, rating, source, lat, lng} */
+const EXTERNAL_RESULTS = [];
 
 /* Real, signed-up biteScout members (replaces the old hardcoded mock PEOPLE
    array). Populated from Firestore's publicUsers collection by loadRealPeople()
@@ -2115,7 +2110,7 @@ function renderSearchResults(query){
   }
 
   if(own.length===0 && external.length===0){
-    html += `<div class="empty-note">No matches for "${query}" — try a different search.</div>`;
+    html += `<div class="empty-note">No matches for "${query}" yet. Head to the Map tab to find and add real nearby places.</div>`;
   }
 
   return html;
