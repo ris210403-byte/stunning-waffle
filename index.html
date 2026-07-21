@@ -323,9 +323,6 @@
   .topbar.topbar-compact{
     padding:10px 18px 8px;
   }
-  .topbar.topbar-compact .demo-label{
-    display:none;
-  }
   .brand-row{
     display:flex;
     align-items:center;
@@ -356,39 +353,6 @@
     font-weight:600;
     font-size:19px;
     letter-spacing:0.2px;
-  }
-  .tier-toggle{
-    display:flex;
-    background:#F0F0F0;
-    border-radius:var(--r-md);
-    padding:3px;
-    font-size:11px;
-    font-weight:700;
-    text-transform:uppercase;
-    letter-spacing:0.5px;
-  }
-  .tier-toggle button{
-    border:none;
-    background:transparent;
-    color:#9CA3AF;
-    padding:6px 12px;
-    border-radius:var(--r-md);
-    cursor:pointer;
-    font-family:inherit;
-    font-weight:700;
-    font-size:11px;
-    transition:all .2s ease;
-  }
-  .tier-toggle button.active{
-    background:var(--accent);
-    color:#fff;
-  }
-  .demo-label{
-    font-size:9px;
-    opacity:0.45;
-    text-align:right;
-    margin-top:3px;
-    letter-spacing:0.4px;
   }
 
   /* ===== Upgrade banner ===== */
@@ -1122,40 +1086,47 @@
     box-shadow:0 2px 8px rgba(0,0,0,0.25) !important;
     border:none !important;
   }
-  .map-floating-sort{
+  .map-floating-search{
     position:absolute;
-    top:64px; left:14px; right:14px;
+    top:14px; left:14px; right:14px;
     z-index:1000;
     display:flex;
-    gap:5px;
-    overflow-x:auto;
+    align-items:center;
+    gap:8px;
     background:rgba(243,236,220,0.92);
     backdrop-filter:blur(4px);
     border-radius:var(--r-md);
-    padding:6px 8px;
+    padding:10px 14px;
     box-shadow:0 4px 14px rgba(0,0,0,0.25);
   }
-  .map-floating-sort button{
-    flex-shrink:0;
+  .map-floating-search input{
+    flex:1;
     border:none;
     background:transparent;
-    padding:6px 10px;
+    font-family:inherit;
+    font-size:13px;
+    color:var(--coffee);
+    outline:none;
+  }
+  .map-floating-filter{
+    top:66px;
+  }
+  .map-sort-select{
+    flex-shrink:0;
+    border:none;
+    background:#fff;
     border-radius:calc(var(--r-md) - 3px);
+    padding:0 8px;
     font-family:inherit;
     font-weight:700;
     font-size:11px;
     color:var(--coffee);
-    opacity:0.6;
-    cursor:pointer;
-  }
-  .map-floating-sort button.active{
-    background:#fff;
-    opacity:1;
     box-shadow:0 2px 6px rgba(59,42,30,0.15);
+    max-width:108px;
   }
   .map-page .cap-meter{
     position:absolute;
-    top:118px; left:14px; right:14px;
+    top:120px; left:14px; right:14px;
     z-index:1000;
     background:rgba(255,255,255,0.95);
     backdrop-filter:blur(4px);
@@ -1294,12 +1265,7 @@
   <div class="topbar" id="topbar">
     <div class="brand-row">
       <div id="brandArea"></div>
-      <div class="tier-toggle">
-        <button id="btnGuest" onclick="setTier('guest')">Guest</button>
-        <button id="btnUser" onclick="setTier('user')">User</button>
-      </div>
     </div>
-    <div class="demo-label" id="demoLabel">Role switch — demo only, for testing tier gating</div>
     <div id="upgradeBanner"></div>
   </div>
 
@@ -1381,7 +1347,7 @@ const state = {
   profileName: '',
   guestDisplayId: 'Guest' + Math.floor(1000 + Math.random() * 9000),
   savedPlaces: ['zoo-negara', 'jonker-market'],
-  connections: ['aiman','siti'],
+  connections: [],
   blocked: [],
   flaggedByMe: [],   // place ids the current user has reported as closed/moved
   flagCounts: {},    // place id -> number of community reports (simulated)
@@ -1393,7 +1359,6 @@ const state = {
   focusPlaceId: null, // set when jumping from Diary to a specific place on the map
   peopleSearchOpen: false,
   peopleSearchQuery: '',
-  peopleFilter: 'all',
   diaryFilter: 'all',
   diarySearchOpen: false,
   diarySearchQuery: '',
@@ -1401,6 +1366,7 @@ const state = {
   minRating: 0,
   sortBy: 'recommended',
   mapSort: 'recommended',
+  mapSearchQuery: '',
   onboardingIndex: 0,
 };
 
@@ -1468,12 +1434,38 @@ const EXTERNAL_RESULTS = [
   {ext_id:'g5', name:"Nancy's Kitchen", area:'Melaka', cat:'Nyonya Restaurant', kind:'food', icon:'🍛', rating:4.4, source:'Google Maps', lat:2.1938, lng:102.2495},
 ];
 
-const PEOPLE = [
-  {id:'aiman', name:'Aiman', badge:'Local Legend', type:'friend', color:'#BE4B33', visits:212, lat:2.1935, lng:102.2485},
-  {id:'siti', name:'Siti', badge:'Trusted Local', type:'user', color:'#55735F', visits:88, lat:2.2010, lng:102.2410},
-  {id:'chefwan', name:'ChefWan', badge:'Verified Influencer', type:'influencer', color:'#E3A23C', visits:340, lat:2.1880, lng:102.2520},
-  {id:'huda', name:'Huda', badge:'Regular', type:'friend', color:'#3E6E8E', visits:14, lat:2.2150, lng:102.1980},
-];
+/* Real, signed-up biteScout members (replaces the old hardcoded mock PEOPLE
+   array). Populated from Firestore's publicUsers collection by loadRealPeople()
+   at init — starts empty until real accounts exist. */
+let REAL_PEOPLE = [];
+
+const AVATAR_COLORS = ['#BE4B33', '#55735F', '#E3A23C', '#3E6E8E', '#8C4B6B', '#2FBF9F'];
+function colorForId(id){
+  let hash = 0;
+  for(let i=0; i<id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
+function loadRealPeople(){
+  db.collection('publicUsers').get().then(function(snap){
+    const people = [];
+    snap.forEach(function(doc){
+      if(fbUser && doc.id === fbUser.uid) return; // never list yourself
+      const d = doc.data();
+      if(!d.displayName) return; // skip accounts that haven't set a name yet
+      people.push({
+        id: doc.id,
+        name: d.displayName,
+        badge: 'biteScout member',
+        color: colorForId(doc.id),
+        visits: d.savedCount || 0,
+        lat: d.lat, lng: d.lng,
+      });
+    });
+    REAL_PEOPLE = people;
+    if(state.tab === 'people') render();
+  }).catch(function(err){ console.error('Failed to load member directory', err); });
+}
 
 /* ============ HELPERS ============ */
 function toast(msg){
@@ -1504,8 +1496,6 @@ function applyTheme(){
 
 function setTier(t){
   state.tier = t;
-  document.getElementById('btnGuest').classList.toggle('active', t==='guest');
-  document.getElementById('btnUser').classList.toggle('active', t==='user');
   renderBanner();
   render();
 }
@@ -1947,19 +1937,24 @@ function renderMap(){
   const savedAll = PLACES.filter(p=>state.savedPlaces.includes(p.id));
   const savedList = savedAll
     .filter(p=> state.mapFilter==='all' || p.kind===state.mapFilter)
-    .filter(p=> state.mapSort==='recommended' || p.rating >= state.mapSort);
+    .filter(p=> state.mapSort==='recommended' || p.rating >= state.mapSort)
+    .filter(p=> state.mapSearchQuery.trim().length===0 || p.name.toLowerCase().includes(state.mapSearchQuery.trim().toLowerCase()));
 
-  if(!state.userLocation && !state.hasAttemptedAutoLocate){
-    state.hasAttemptedAutoLocate = true;
-    requestUserLocation(()=>{
-      state.mapView = null; // let it recenter on the freshly-found location
-      render();
-    });
+  // Still waiting on the initial location request (kicked off at app init) —
+  // show a lightweight loading state instead of flashing the Melaka default center.
+  const stillLocating = !state.userLocation && (state.locationStatus === 'locating' || state.locationStatus === 'idle');
+  if(stillLocating){
+    return `
+      <div class="map-page" style="align-items:center;justify-content:center;display:flex;">
+        <div style="text-align:center;color:#6B7280;font-size:13px;">
+          <div style="font-size:32px;margin-bottom:10px;">📍</div>
+          Finding your location…
+        </div>
+      </div>`;
   }
 
   let locNote = '';
-  if(state.locationStatus === 'locating') locNote = 'Finding your location…';
-  else if(state.locationStatus === 'denied') locNote = 'Location denied — tap 📍 to retry.';
+  if(state.locationStatus === 'denied') locNote = 'Location denied — tap 📍 to retry.';
   else if(state.locationStatus === 'unavailable') locNote = 'Location unavailable on this device.';
   else if(state.locationStatus === 'granted') locNote = 'Tap any pin for directions.';
   else locNote = 'Tap 📍 to find your real location.';
@@ -1975,6 +1970,12 @@ function renderMap(){
 
   let html = `
     <div class="map-page">
+      <div class="map-floating-search">
+        <span class="search-ic">🔎</span>
+        <input id="mapSearchInput" placeholder="Search your saved places..." value="${state.mapSearchQuery}" oninput="onMapSearchInput(this.value)">
+        <span id="mapSearchClearWrap">${state.mapSearchQuery ? `<button class="search-clear" onclick="onMapSearchInput('')">✕</button>` : ''}</span>
+      </div>
+
       <div class="leaflet-map-container">
         <div id="leafletMap" style="width:100%;height:100%;"></div>
       </div>
@@ -1983,10 +1984,9 @@ function renderMap(){
         <button class="${state.mapFilter==='all'?'active':''}" onclick="setMapFilter('all')">All</button>
         <button class="${state.mapFilter==='food'?'active':''}" onclick="setMapFilter('food')">🍜 Food</button>
         <button class="${state.mapFilter==='place'?'active':''}" onclick="setMapFilter('place')">📍 Places</button>
-      </div>
-
-      <div class="map-floating-sort">
-        ${sortOptions.map(o=>`<button class="${state.mapSort===o.val?'active':''}" onclick="setMapSort('${o.val}')">${o.label}</button>`).join('')}
+        <select class="map-sort-select" onchange="setMapSort(this.value)">
+          ${sortOptions.map(o=>`<option value="${o.val}" ${state.mapSort===o.val?'selected':''}>Sort: ${o.label}</option>`).join('')}
+        </select>
       </div>
 
       ${isGuest() ? `<div class="cap-meter"><div class="cap-meter-row"><span>Saved on map</span><span>${state.savedPlaces.length} / ${CAPS.guest.saves}</span></div><div class="cap-track"><div class="cap-fill" style="width:${Math.min(100,(state.savedPlaces.length/CAPS.guest.saves)*100)}%"></div></div></div>` : ''}
@@ -2034,7 +2034,19 @@ function initLeafletMap(savedList){
     }).addTo(leafletMap).bindPopup('You are here');
   }
 
-  // Place markers
+  leafletMarkers = [];
+  renderMapMarkers(savedList);
+}
+
+/* Adds/refreshes place pins on the already-existing Leaflet map without
+   recreating the map itself — used both on first load and when the map
+   search box filters the pin list, so pan/zoom and the search input are
+   never disturbed mid-typing. */
+function renderMapMarkers(savedList){
+  if(!leafletMap) return;
+  leafletMarkers.forEach(m=> leafletMap.removeLayer(m));
+  leafletMarkers = [];
+
   savedList.forEach(p=>{
     const color = p.kind==='food' ? '#FFA726' : '#F0A824';
     const marker = L.circleMarker([p.lat, p.lng], {
@@ -2061,9 +2073,27 @@ function initLeafletMap(savedList){
     if(state.focusPlaceId === p.id){
       setTimeout(()=> marker.openPopup(), 300);
     }
+
+    leafletMarkers.push(marker);
   });
 
   state.focusPlaceId = null; // consume it so it doesn't reopen on later re-renders
+}
+
+/* Filters the map's pins by name as the user types, without a full render()
+   (which would tear down and rebuild the Leaflet map and dismiss the keyboard). */
+function onMapSearchInput(val){
+  state.mapSearchQuery = val;
+  const clearWrap = document.getElementById('mapSearchClearWrap');
+  if(clearWrap){
+    clearWrap.innerHTML = val ? `<button class="search-clear" onclick="onMapSearchInput('')">✕</button>` : '';
+  }
+  const savedAll = PLACES.filter(p=>state.savedPlaces.includes(p.id));
+  const filtered = savedAll
+    .filter(p=> state.mapFilter==='all' || p.kind===state.mapFilter)
+    .filter(p=> state.mapSort==='recommended' || p.rating >= state.mapSort)
+    .filter(p=> val.trim().length===0 || p.name.toLowerCase().includes(val.trim().toLowerCase()));
+  renderMapMarkers(filtered);
 }
 
 function onLocateMeClick(){
@@ -2215,19 +2245,15 @@ function setSortBy(s){
 function renderPeople(){
   let html = `<div class="section-eyebrow">Your circle</div><div class="section-title">People</div>`;
 
-  const showPeopleSearch = PEOPLE.length > 15;
+  html += `<button class="people-add-toggle" onclick="togglePeopleSearch()">${state.peopleSearchOpen ? '✕ Close search' : '＋ Find people'}</button>`;
 
-  if(showPeopleSearch){
-    html += `<button class="people-add-toggle" onclick="togglePeopleSearch()">${state.peopleSearchOpen ? '✕ Close search' : '＋ Find people'}</button>`;
-
-    if(state.peopleSearchOpen){
-      html += `
-        <div class="search-bar" style="margin-top:10px;">
-          <span class="search-ic">🔎</span>
-          <input id="peopleSearchInput" placeholder="Search by name..." value="${state.peopleSearchQuery}" oninput="onPeopleSearchInput(this.value)">
-          <span id="peopleSearchClearWrap">${state.peopleSearchQuery ? `<button class="search-clear" onclick="onPeopleSearchInput('')">✕</button>` : ''}</span>
-        </div>`;
-    }
+  if(state.peopleSearchOpen){
+    html += `
+      <div class="search-bar" style="margin-top:10px;">
+        <span class="search-ic">🔎</span>
+        <input id="peopleSearchInput" placeholder="Search by name..." value="${state.peopleSearchQuery}" oninput="onPeopleSearchInput(this.value)">
+        <span id="peopleSearchClearWrap">${state.peopleSearchQuery ? `<button class="search-clear" onclick="onPeopleSearchInput('')">✕</button>` : ''}</span>
+      </div>`;
   }
 
   html += `<div id="peopleBody">${renderPeopleBody()}</div>`;
@@ -2242,7 +2268,7 @@ function renderPeopleBody(){
   if(state.peopleSearchOpen){
     const q = state.peopleSearchQuery.trim().toLowerCase();
     if(q.length > 0){
-      const matches = PEOPLE.filter(p=>p.name.toLowerCase().includes(q));
+      const matches = REAL_PEOPLE.filter(p=>p.name.toLowerCase().includes(q));
       html += `<div class="section-eyebrow" style="margin-top:14px;">Search results</div>`;
       if(matches.length===0){
         html += `<div class="empty-note">No one found matching "${state.peopleSearchQuery}".</div>`;
@@ -2253,32 +2279,17 @@ function renderPeopleBody(){
     }
   }
 
-  html += `
-    <div class="kind-filter" style="margin-top:2px;">
-      <button class="${state.peopleFilter==='all'?'active':''}" onclick="setPeopleFilter('all')">All</button>
-      <button class="${state.peopleFilter==='friend'?'active':''}" onclick="setPeopleFilter('friend')">Friends</button>
-      <button class="${state.peopleFilter==='user'?'active':''}" onclick="setPeopleFilter('user')">Users</button>
-      <button class="${state.peopleFilter==='influencer'?'active':''}" onclick="setPeopleFilter('influencer')">Influencer</button>
-    </div>`;
+  // Real signed-up biteScout members — loaded from Firestore (loadRealPeople()).
+  // No mock people anymore: an empty list here just means no one else has joined yet.
+  const withDist = state.userLocation
+    ? REAL_PEOPLE.map(p=>({ ...p, dist: distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng) })).sort((a,b)=>a.dist-b.dist)
+    : REAL_PEOPLE;
 
-  const filteredPeople = PEOPLE.filter(p => state.peopleFilter==='all' || p.type===state.peopleFilter);
-
-  // Simulated "People Near You" using real device GPS + mock people locations.
-  // Real proximity discovery across real users needs a backend — this shows the UX now.
-  if(state.userLocation){
-    const nearby = filteredPeople
-      .map(p=>({ ...p, dist: distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng) }))
-      .sort((a,b)=>a.dist-b.dist);
-    html += `<div class="section-eyebrow" style="margin-top:6px;">📍 People near you</div>`;
-    if(nearby.length===0) html += `<div class="empty-note">No one in this category yet.</div>`;
-    nearby.forEach(p=> html += personRowHtml(p, cap, used, formatDistance(p.dist)));
-    html += `<div class="section-eyebrow" style="margin-top:16px;">Everyone</div>`;
+  html += `<div class="section-eyebrow" style="margin-top:6px;">📍 biteScout members</div>`;
+  if(withDist.length===0){
+    html += `<div class="empty-note">No one else has joined biteScout yet — invite a friend to test it with you!</div>`;
   }
-
-  if(filteredPeople.length===0){
-    html += `<div class="empty-note">No one in this category yet.</div>`;
-  }
-  filteredPeople.forEach(p=> html += personRowHtml(p, cap, used));
+  withDist.forEach(p=> html += personRowHtml(p, cap, used, (state.userLocation && p.dist!=null) ? formatDistance(p.dist) : null));
   return html;
 }
 
@@ -2307,11 +2318,6 @@ function personRowHtml(p, cap, used, distLabel){
         ${!blocked ? `<button class="icon-btn" onclick="toggleBlock('${p.id}')" title="Block">⛔</button>` : ''}
       </div>
     </div>`;
-}
-
-function setPeopleFilter(f){
-  state.peopleFilter = f;
-  render();
 }
 
 function togglePeopleSearch(){
@@ -2423,6 +2429,10 @@ function renderMe(){
         <div class="field-locked" style="margin-bottom:14px;">This is the demo User view — no Firebase account is signed in, so nothing here is saved. Log in from the welcome screen for a real, persistent account.</div>`;
     }
   }
+
+  html += `
+    <div class="section-eyebrow" style="margin-top:16px;">About biteScout</div>
+    <button class="btn btn-ghost" style="width:100%;justify-content:center;margin-bottom:14px;" onclick="replayOnboarding()">🧭 Replay intro</button>`;
 
   return html;
 }
@@ -2547,8 +2557,16 @@ function finishOnboarding(){
   const onboarding = document.getElementById('onboardingScreen');
   if(onboarding){
     onboarding.classList.add('hide');
-    setTimeout(()=> onboarding.remove(), 400);
+    // Kept in the DOM (not removed) so "Replay intro" in the Me tab can bring it back later.
   }
+  try{ localStorage.setItem('bitescout_onboarding_seen', '1'); } catch(e){ /* private browsing etc — fine, just won't remember */ }
+}
+
+function replayOnboarding(){
+  state.onboardingIndex = 0;
+  renderOnboardingSlide();
+  const onboarding = document.getElementById('onboardingScreen');
+  if(onboarding) onboarding.classList.remove('hide');
 }
 
 function setupOnboardingSwipe(){
@@ -2617,14 +2635,24 @@ function handleCreateAccount(){
   auth.createUserWithEmailAndPassword(email, password)
     .then(function(cred){
       // Fresh real account starts from a clean slate — not the Guest demo seed data.
-      return db.collection('users').doc(cred.user.uid).set({
-        profileName: '',
-        savedPlaces: [],
-        connections: [],
-        blocked: [],
-        flaggedByMe: [],
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      });
+      return Promise.all([
+        db.collection('users').doc(cred.user.uid).set({
+          profileName: '',
+          savedPlaces: [],
+          connections: [],
+          blocked: [],
+          flaggedByMe: [],
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        }),
+        // Public-safe entry so this person can show up in others' People tab.
+        // Only a display name, saved count, and (once granted) rough location —
+        // never email/password. Name starts blank until they set one in Me.
+        db.collection('publicUsers').doc(cred.user.uid).set({
+          displayName: '',
+          savedCount: 0,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        })
+      ]);
     })
     .then(function(){ dismissWelcomeScreen(); })
     .catch(function(err){
@@ -2652,7 +2680,7 @@ function handleSignOut(){
     fbUser = null;
     state.profileName = '';
     state.savedPlaces = ['zoo-negara', 'jonker-market'];
-    state.connections = ['aiman', 'siti'];
+    state.connections = [];
     state.blocked = [];
     state.flaggedByMe = [];
     setTier('guest');
@@ -2674,6 +2702,8 @@ auth.onAuthStateChanged(function(user){
         state.flaggedByMe = d.flaggedByMe || [];
       }
       setTier('user');
+      dismissWelcomeScreen(); // returning signed-in session — skip straight past Welcome
+      loadRealPeople(); // refresh now that we know who to exclude from the list
     }).catch(function(err){
       console.error('Failed to load profile', err);
       toast('Could not load your saved data — check your connection.');
@@ -2699,6 +2729,18 @@ function syncUserData(){
       console.error('Sync failed', err);
       toast('Could not save — check your connection.');
     });
+
+    // Mirror the public-safe subset (name, saved count, rough location) so
+    // this person shows up correctly for others in the People tab.
+    const publicUpdate = {
+      displayName: state.profileName || '',
+      savedCount: state.savedPlaces.length,
+    };
+    if(state.userLocation){
+      publicUpdate.lat = state.userLocation.lat;
+      publicUpdate.lng = state.userLocation.lng;
+    }
+    db.collection('publicUsers').doc(fbUser.uid).set(publicUpdate, { merge: true }).catch(function(){});
   }, 500);
 }
 
@@ -2719,6 +2761,25 @@ setTab('discover');
 renderOnboardingSlide();
 setupOnboardingSwipe();
 loadFlagCounts();
+loadRealPeople();
+
+// Only first-time installs see the onboarding carousel — instantly hide it
+// (no animation) if this device has already been through it before.
+try{
+  if(localStorage.getItem('bitescout_onboarding_seen') === '1'){
+    const onboarding = document.getElementById('onboardingScreen');
+    if(onboarding) onboarding.classList.add('hide');
+  }
+}catch(e){ /* private browsing etc — fine, it'll just show once more */ }
+
+// Request location as early as possible — by the time the user reaches the Map
+// tab, state.userLocation is very likely already resolved, so the map opens
+// centered on them directly instead of flashing the Melaka default first.
+state.hasAttemptedAutoLocate = true;
+requestUserLocation(()=>{
+  syncUserData(); // no-op if not signed in — mirrors location to publicUsers if it is
+  if(state.tab === 'discover' || state.tab === 'map' || state.tab === 'people') render();
+});
 
 // Show the big logo briefly, then reveal the app
 setTimeout(()=>{
