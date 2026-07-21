@@ -2323,6 +2323,7 @@ function initMap(savedList){
   mapGL.on('moveend', ()=>{
     const c = mapGL.getCenter();
     state.mapView = { center: [c.lat, c.lng], zoom: mapGL.getZoom(), bearing: mapGL.getBearing() };
+    scheduleNearbyPOIRefresh();
   });
 
   mapGL.on('click', ()=> deselectMapPlace());
@@ -2353,6 +2354,7 @@ function initMap(savedList){
     renderMapMarkers(savedList);
     discoveredMarkers = [];
     renderDiscoveredMarkers();
+    scheduleNearbyPOIRefresh();
   });
 }
 
@@ -2558,12 +2560,12 @@ function onMapSearchSubmit(){
         if(mapGL){
           // Map is already live — just move the camera, don't tear down and rebuild
           // the whole map (that re-fetches the style/tiles and re-inits WebGL, which
-          // is what was causing the lag).
+          // is what was causing the lag). The camera move's moveend event will
+          // automatically refresh the nearby-POI layer for the new area.
           mapGL.flyTo({ center: [lon, lat], zoom: 14, essential: true });
         } else {
           render();
         }
-        fetchNearbyPOIs(lat, lon);
       } else {
         toast(`No location found for "${q}".`);
       }
@@ -2579,26 +2581,55 @@ function onMapSearchSubmit(){
    stations, restaurants and cafes near a searched point. Best-effort: if it
    fails or times out, the geocoded location search above still already
    worked, so this failing silently-ish is acceptable — it's a bonus layer. */
-function fetchNearbyPOIs(lat, lon){
+/* Debounced so panning/zooming doesn't hammer Overpass's free public server
+   with a request on every tiny movement — only fires ~900ms after the map
+   settles. */
+let poiRefreshTimer = null;
+function scheduleNearbyPOIRefresh(){
+  clearTimeout(poiRefreshTimer);
+  poiRefreshTimer = setTimeout(fetchNearbyPOIs, 900);
+}
+
+/* Always-on background layer of well-known nearby points of interest — shows
+   automatically for whatever's currently in view (like Google/Apple Maps),
+   not just after an explicit search. Uses Overpass API against the map's
+   actual visible bounds. Un-adopted places never persist here permanently —
+   this simply reflects "what's around right now"; only tapping "Add to
+   biteScout" turns one into a real, permanent cobalt/orange biteScout place. */
+function fetchNearbyPOIs(){
+  if(!mapGL) return;
+
+  // Don't bother at very wide zoom levels — city/country view would return
+  // thousands of results and just clutter the map (same convention real map
+  // apps use: POI icons only appear once you're zoomed in reasonably close).
+  if(mapGL.getZoom() < 11){
+    DISCOVERED_PLACES = [];
+    renderDiscoveredMarkers();
+    return;
+  }
+
+  const b = mapGL.getBounds();
+  const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+
   // nwr (node/way/relation) instead of just node — parks, hospitals, and museums
   // are frequently mapped as areas in OSM, not single points, so node-only
   // queries were missing most of them.
   const query = `[out:json][timeout:12];(
-    nwr["shop"="mall"](around:3000,${lat},${lon});
-    nwr["shop"="supermarket"](around:2000,${lat},${lon});
-    nwr["shop"="convenience"](around:1500,${lat},${lon});
-    nwr["amenity"="restaurant"](around:1500,${lat},${lon});
-    nwr["amenity"="cafe"](around:1500,${lat},${lon});
-    nwr["amenity"="fast_food"](around:1500,${lat},${lon});
-    nwr["tourism"="zoo"](around:6000,${lat},${lon});
-    nwr["tourism"="museum"](around:5000,${lat},${lon});
-    nwr["leisure"="park"](around:3000,${lat},${lon});
-    nwr["leisure"="garden"](around:2000,${lat},${lon});
-    nwr["amenity"="fuel"](around:3000,${lat},${lon});
-    nwr["amenity"="police"](around:5000,${lat},${lon});
-    nwr["amenity"="hospital"](around:5000,${lat},${lon});
-    nwr["amenity"="clinic"](around:2000,${lat},${lon});
-  );out center 40;`;
+    nwr["shop"="mall"](${bbox});
+    nwr["shop"="supermarket"](${bbox});
+    nwr["shop"="convenience"](${bbox});
+    nwr["amenity"="restaurant"](${bbox});
+    nwr["amenity"="cafe"](${bbox});
+    nwr["amenity"="fast_food"](${bbox});
+    nwr["tourism"="zoo"](${bbox});
+    nwr["tourism"="museum"](${bbox});
+    nwr["leisure"="park"](${bbox});
+    nwr["leisure"="garden"](${bbox});
+    nwr["amenity"="fuel"](${bbox});
+    nwr["amenity"="police"](${bbox});
+    nwr["amenity"="hospital"](${bbox});
+    nwr["amenity"="clinic"](${bbox});
+  );out center 60;`;
 
   fetch('https://overpass-api.de/api/interpreter', {
     method: 'POST',
@@ -2607,7 +2638,9 @@ function fetchNearbyPOIs(lat, lon){
     .then(res => { if(!res.ok) throw new Error('bad status ' + res.status); return res.json(); })
     .then(data => {
       const named = (data.elements || []).filter(e => e.tags && e.tags.name);
-      DISCOVERED_PLACES = named.slice(0, 40).map(e => {
+      DISCOVERED_PLACES = named.slice(0, 60).map(e => {
+        const id = 'poi-' + e.id;
+        if(PLACES.find(p=>p.id===id)) return null; // already adopted as a real biteScout place — skip, it renders as a saved pin instead
         const catKey = e.tags.shop || e.tags.amenity || e.tags.tourism || e.tags.leisure;
         const meta = POI_CATEGORY_MAP[catKey] || { label: catKey || 'Place', icon: '📍', kind: 'place', group: 'interest' };
         // Nodes give lat/lon directly; ways/relations give a center object instead.
@@ -2615,7 +2648,7 @@ function fetchNearbyPOIs(lat, lon){
         const lon2 = e.lon !== undefined ? e.lon : (e.center ? e.center.lon : null);
         if(lat2 == null || lon2 == null) return null;
         return {
-          id: 'poi-' + e.id,
+          id: id,
           name: e.tags.name,
           area: '',
           cat: meta.label,
