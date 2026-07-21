@@ -1341,6 +1341,8 @@ const state = {
   peopleSearchQuery: '',
   peopleFilter: 'all',
   diaryFilter: 'all',
+  diarySearchOpen: false,
+  diarySearchQuery: '',
   discoverFiltersOpen: false,
   minRating: 0,
   sortBy: 'recommended',
@@ -2044,7 +2046,30 @@ function renderDiary(){
       <button class="${state.diaryFilter==='place'?'active':''}" onclick="setDiaryFilter('place')">📍 Places</button>
       <button class="${state.diaryFilter==='food'?'active':''}" onclick="setDiaryFilter('food')">🍜 Bites</button>
     </div>`;
-  html += `
+
+  const allEntries = state.savedPlaces.map(id => PLACES.find(x=>x.id===id)).filter(Boolean);
+  const placesCount = allEntries.filter(p=>p.kind==='place').length;
+  const bitesCount = allEntries.filter(p=>p.kind==='food').length;
+  const showDiarySearch = placesCount > 10 || bitesCount > 10;
+
+  if(showDiarySearch){
+    html += `<button class="people-add-toggle" onclick="toggleDiarySearch()">${state.diarySearchOpen ? '✕ Close search' : '＋ Find in diary'}</button>`;
+    if(state.diarySearchOpen){
+      html += `
+        <div class="search-bar" style="margin-top:10px;">
+          <span class="search-ic">🔎</span>
+          <input id="diarySearchInput" placeholder="Search your diary..." value="${state.diarySearchQuery}" oninput="onDiarySearchInput(this.value)">
+          <span id="diarySearchClearWrap">${state.diarySearchQuery ? `<button class="search-clear" onclick="onDiarySearchInput('')">✕</button>` : ''}</span>
+        </div>`;
+    }
+  }
+
+  html += `<div id="diaryBody">${renderDiaryBody()}</div>`;
+  return html;
+}
+
+function renderDiaryBody(){
+  let html = `
     <div class="place-card">
       <div class="place-name" style="font-size:14px;margin-bottom:8px;">New entry</div>
       <div class="tag-row" style="margin-bottom:10px;">
@@ -2056,12 +2081,16 @@ function renderDiary(){
       }
     </div>`;
 
+  const q = state.diarySearchOpen ? state.diarySearchQuery.trim().toLowerCase() : '';
+
   const entries = state.savedPlaces
     .map(id => PLACES.find(x=>x.id===id))
-    .filter(p => p && (state.diaryFilter==='all' || p.kind===state.diaryFilter));
+    .filter(p => p && (state.diaryFilter==='all' || p.kind===state.diaryFilter))
+    .filter(p => q.length===0 || p.name.toLowerCase().includes(q));
 
   if(entries.length===0){
-    html += `<div class="empty-note">No ${state.diaryFilter==='all' ? 'diary entries' : (state.diaryFilter==='place' ? 'places' : 'bites')} yet — save a place and log your first visit.</div>`;
+    const label = q.length>0 ? `matching "${state.diarySearchQuery}"` : (state.diaryFilter==='all' ? 'diary entries' : (state.diaryFilter==='place' ? 'places' : 'bites'));
+    html += `<div class="empty-note">No ${label} yet${q.length>0?'':' — save a place and log your first visit'}.</div>`;
   } else {
     entries.forEach(p=>{
       html += `
@@ -2082,6 +2111,26 @@ function setDiaryFilter(f){
   render();
 }
 
+function toggleDiarySearch(){
+  state.diarySearchOpen = !state.diarySearchOpen;
+  if(!state.diarySearchOpen) state.diarySearchQuery = '';
+  render();
+}
+
+function onDiarySearchInput(val){
+  state.diarySearchQuery = val;
+  const clearWrap = document.getElementById('diarySearchClearWrap');
+  if(clearWrap){
+    clearWrap.innerHTML = val ? `<button class="search-clear" onclick="onDiarySearchInput('')">✕</button>` : '';
+  }
+  const body = document.getElementById('diaryBody');
+  if(body){
+    body.innerHTML = renderDiaryBody();
+  } else {
+    render();
+  }
+}
+
 function toggleDiscoverFilters(){
   state.discoverFiltersOpen = !state.discoverFiltersOpen;
   render();
@@ -2100,15 +2149,19 @@ function setSortBy(s){
 function renderPeople(){
   let html = `<div class="section-eyebrow">Your circle</div><div class="section-title">People</div>`;
 
-  html += `<button class="people-add-toggle" onclick="togglePeopleSearch()">${state.peopleSearchOpen ? '✕ Close search' : '＋ Find people'}</button>`;
+  const showPeopleSearch = PEOPLE.length > 15;
 
-  if(state.peopleSearchOpen){
-    html += `
-      <div class="search-bar" style="margin-top:10px;">
-        <span class="search-ic">🔎</span>
-        <input id="peopleSearchInput" placeholder="Search by name..." value="${state.peopleSearchQuery}" oninput="onPeopleSearchInput(this.value)">
-        <span id="peopleSearchClearWrap">${state.peopleSearchQuery ? `<button class="search-clear" onclick="onPeopleSearchInput('')">✕</button>` : ''}</span>
-      </div>`;
+  if(showPeopleSearch){
+    html += `<button class="people-add-toggle" onclick="togglePeopleSearch()">${state.peopleSearchOpen ? '✕ Close search' : '＋ Find people'}</button>`;
+
+    if(state.peopleSearchOpen){
+      html += `
+        <div class="search-bar" style="margin-top:10px;">
+          <span class="search-ic">🔎</span>
+          <input id="peopleSearchInput" placeholder="Search by name..." value="${state.peopleSearchQuery}" oninput="onPeopleSearchInput(this.value)">
+          <span id="peopleSearchClearWrap">${state.peopleSearchQuery ? `<button class="search-clear" onclick="onPeopleSearchInput('')">✕</button>` : ''}</span>
+        </div>`;
+    }
   }
 
   html += `<div id="peopleBody">${renderPeopleBody()}</div>`;
