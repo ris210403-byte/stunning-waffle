@@ -12,6 +12,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- Firebase (compat SDK — plain globals, no build step, matches the rest of this app) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --ink:#0D4D4D;
@@ -136,6 +140,32 @@
     width:100%;
     text-align:center;
     opacity:0.75;
+  }
+  .welcome-input{
+    width:100%;
+    padding:13px 14px;
+    border-radius:14px;
+    border:1.5px solid #E0E0E0;
+    font-family:inherit;
+    font-size:14px;
+    color:var(--coffee);
+    background:#fff;
+  }
+  .welcome-input:focus{
+    outline:none;
+    border-color:var(--accent);
+  }
+  .welcome-auth-error{
+    font-size:12.5px;
+    color:var(--chili);
+    font-weight:600;
+    min-height:16px;
+    padding:0 2px;
+  }
+  .welcome-btn-primary:disabled,
+  .welcome-btn-outline:disabled{
+    opacity:0.6;
+    cursor:default;
   }
 
   /* ===== Onboarding carousel ===== */
@@ -1244,8 +1274,11 @@
   </div>
   <div class="welcome-spacer"></div>
   <div class="welcome-actions">
-    <button class="welcome-btn-primary" onclick="chooseWelcomeAction('user')">Create Account</button>
-    <button class="welcome-btn-outline" onclick="chooseWelcomeAction('user')">Sign In</button>
+    <input class="welcome-input" id="welcomeEmail" type="email" placeholder="Email" autocomplete="email">
+    <input class="welcome-input" id="welcomePassword" type="password" placeholder="Password (min 6 characters)" autocomplete="current-password">
+    <div class="welcome-auth-error" id="welcomeAuthError"></div>
+    <button class="welcome-btn-primary" id="btnCreateAccount" onclick="handleCreateAccount()">Create Account</button>
+    <button class="welcome-btn-outline" id="btnSignIn" onclick="handleSignIn()">Sign In</button>
     <button class="welcome-link" onclick="chooseWelcomeAction('guest')">Explore as Guest</button>
   </div>
 </div>
@@ -1284,6 +1317,27 @@
 </div>
 
 <script>
+/* ============ FIREBASE ============ */
+/* TODO(Harris): replace with the real config from Firebase console → Project settings → your web app.
+   This is NOT a secret — Firebase's web config is meant to be public in client code.
+   Real protection comes from Firestore security rules, not from hiding these values. */
+const firebaseConfig = {
+  apiKey: "AIzaSyCtg-gIaobz50_7vC2RXSqhWTVaaMrKy7U",
+  authDomain: "bitescout-d2f72.firebaseapp.com",
+  projectId: "bitescout-d2f72",
+  storageBucket: "bitescout-d2f72.firebasestorage.app",
+  messagingSenderId: "897108621170",
+  appId: "1:897108621170:web:a46ed0d213d3d04df98feb"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+/* The real signed-in Firebase user, or null if browsing as Guest/demo-User (no account).
+   Only a real fbUser gets Firestore persistence — the Guest/User toggle in the top bar
+   stays a pure UI demo exactly as before and never touches the network. */
+let fbUser = null;
+
 /* ============ STATE ============ */
 /* THEMES and FONT_COLORS removed — replaced by hue sliders below */
 
@@ -1842,11 +1896,22 @@ function flagPlace(id){
     state.flaggedByMe = state.flaggedByMe.filter(x=>x!==id);
     state.flagCounts[id] = Math.max(0, (state.flagCounts[id]||0) - 1);
     toast('Report withdrawn.');
+    if(fbUser){
+      db.collection('flagCounts').doc(id).set({
+        count: firebase.firestore.FieldValue.increment(-1)
+      }, { merge: true }).catch(function(){});
+    }
   } else {
     state.flaggedByMe.push(id);
     state.flagCounts[id] = (state.flagCounts[id]||0) + 1;
     toast('Thanks — flagged for the community to verify. This keeps biteScout accurate.');
+    if(fbUser){
+      db.collection('flagCounts').doc(id).set({
+        count: firebase.firestore.FieldValue.increment(1)
+      }, { merge: true }).catch(function(){});
+    }
   }
+  syncUserData();
   render();
 }
 
@@ -1865,6 +1930,7 @@ function toggleSave(id){
     if(state.savedPlaces.length >= cap){ capToast('save'); return; }
     state.savedPlaces.push(id);
   }
+  syncUserData();
   render();
 }
 
@@ -2276,6 +2342,7 @@ function toggleConnect(id){
     if(state.connections.length >= cap){ capToast('connect'); return; }
     state.connections.push(id);
   }
+  syncUserData();
   render();
 }
 
@@ -2288,6 +2355,7 @@ function toggleBlock(id){
     state.connections = state.connections.filter(x=>x!==id);
     toast('Blocked. They will no longer appear in your circle.');
   }
+  syncUserData();
   render();
 }
 
@@ -2341,8 +2409,19 @@ function renderMe(){
   } else {
     html += `
       <div class="section-eyebrow">Display name</div>
-      <input id="nameInput" value="${state.profileName}" placeholder="Enter your name" oninput="state.profileName=this.value" style="width:100%;padding:10px 12px;border-radius:var(--r-sm);border:1px solid #D8D8D8;font-family:inherit;font-size:13px;margin-bottom:14px;">
+      <input id="nameInput" value="${state.profileName}" placeholder="Enter your name" oninput="state.profileName=this.value; syncUserData();" style="width:100%;padding:10px 12px;border-radius:var(--r-sm);border:1px solid #D8D8D8;font-family:inherit;font-size:13px;margin-bottom:14px;">
     `;
+    if(fbUser){
+      html += `
+        <div class="section-eyebrow">Account</div>
+        <div class="place-card" style="margin-bottom:14px;">
+          <div style="font-size:12.5px;color:#6B7280;margin-bottom:10px;">Signed in as <strong style="color:var(--coffee);">${fbUser.email}</strong> · data syncs to your account</div>
+          <button class="btn btn-ghost" style="width:100%;justify-content:center;" onclick="handleSignOut()">Log out</button>
+        </div>`;
+    } else {
+      html += `
+        <div class="field-locked" style="margin-bottom:14px;">This is the demo User view — no Firebase account is signed in, so nothing here is saved. Log in from the welcome screen for a real, persistent account.</div>`;
+    }
   }
 
   return html;
@@ -2491,11 +2570,7 @@ function setupOnboardingSwipe(){
   }, {passive:true});
 }
 
-function chooseWelcomeAction(tier){
-  // NOTE: no real backend/auth exists yet — Create Account and Sign In
-  // both currently just set the demo tier to 'user' so the User experience
-  // can be tested. Wire this to real Firebase auth once that's built.
-  setTier(tier);
+function dismissWelcomeScreen(){
   const welcome = document.getElementById('welcomeScreen');
   if(welcome){
     welcome.classList.add('hide');
@@ -2503,11 +2578,147 @@ function chooseWelcomeAction(tier){
   }
 }
 
+function chooseWelcomeAction(tier){
+  // Guest path only — no account, nothing persisted, exactly as before.
+  // Real accounts go through handleCreateAccount()/handleSignIn() below.
+  setTier(tier);
+  dismissWelcomeScreen();
+}
+
+function setWelcomeAuthError(msg){
+  const el = document.getElementById('welcomeAuthError');
+  if(el) el.textContent = msg || '';
+}
+
+function setWelcomeButtonsLoading(loading){
+  const a = document.getElementById('btnCreateAccount');
+  const b = document.getElementById('btnSignIn');
+  if(a){ a.disabled = loading; a.textContent = loading ? 'Please wait…' : 'Create Account'; }
+  if(b){ b.disabled = loading; b.textContent = loading ? 'Please wait…' : 'Sign In'; }
+}
+
+function friendlyAuthError(err){
+  const code = (err && err.code) || '';
+  if(code.includes('email-already-in-use')) return 'That email already has an account — try Sign In instead.';
+  if(code.includes('invalid-email')) return 'That email address looks invalid.';
+  if(code.includes('user-not-found') || code.includes('wrong-password') || code.includes('invalid-credential')) return 'Incorrect email or password.';
+  if(code.includes('weak-password')) return 'Password must be at least 6 characters.';
+  if(code.includes('network-request-failed')) return 'No connection — check your internet and try again.';
+  return 'Something went wrong. Please try again.';
+}
+
+function handleCreateAccount(){
+  const email = document.getElementById('welcomeEmail').value.trim();
+  const password = document.getElementById('welcomePassword').value;
+  setWelcomeAuthError('');
+  if(!email || !password){ setWelcomeAuthError('Enter an email and password.'); return; }
+  if(password.length < 6){ setWelcomeAuthError('Password must be at least 6 characters.'); return; }
+  setWelcomeButtonsLoading(true);
+  auth.createUserWithEmailAndPassword(email, password)
+    .then(function(cred){
+      // Fresh real account starts from a clean slate — not the Guest demo seed data.
+      return db.collection('users').doc(cred.user.uid).set({
+        profileName: '',
+        savedPlaces: [],
+        connections: [],
+        blocked: [],
+        flaggedByMe: [],
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    })
+    .then(function(){ dismissWelcomeScreen(); })
+    .catch(function(err){
+      setWelcomeButtonsLoading(false);
+      setWelcomeAuthError(friendlyAuthError(err));
+    });
+}
+
+function handleSignIn(){
+  const email = document.getElementById('welcomeEmail').value.trim();
+  const password = document.getElementById('welcomePassword').value;
+  setWelcomeAuthError('');
+  if(!email || !password){ setWelcomeAuthError('Enter an email and password.'); return; }
+  setWelcomeButtonsLoading(true);
+  auth.signInWithEmailAndPassword(email, password)
+    .then(function(){ dismissWelcomeScreen(); })
+    .catch(function(err){
+      setWelcomeButtonsLoading(false);
+      setWelcomeAuthError(friendlyAuthError(err));
+    });
+}
+
+function handleSignOut(){
+  auth.signOut().then(function(){
+    fbUser = null;
+    state.profileName = '';
+    state.savedPlaces = ['zoo-negara', 'jonker-market'];
+    state.connections = ['aiman', 'siti'];
+    state.blocked = [];
+    state.flaggedByMe = [];
+    setTier('guest');
+    toast('Logged out.');
+  });
+}
+
+/* Loads the signed-in user's real data from Firestore into local state, then renders. */
+auth.onAuthStateChanged(function(user){
+  fbUser = user;
+  if(user){
+    db.collection('users').doc(user.uid).get().then(function(doc){
+      if(doc.exists){
+        const d = doc.data();
+        state.profileName = d.profileName || '';
+        state.savedPlaces = d.savedPlaces || [];
+        state.connections = d.connections || [];
+        state.blocked = d.blocked || [];
+        state.flaggedByMe = d.flaggedByMe || [];
+      }
+      setTier('user');
+    }).catch(function(err){
+      console.error('Failed to load profile', err);
+      toast('Could not load your saved data — check your connection.');
+    });
+  }
+});
+
+/* Debounced write-through to Firestore. No-op for Guest/demo-User (no fbUser) —
+   the manual top-bar tier toggle stays purely local, exactly as designed. */
+let syncTimer = null;
+function syncUserData(){
+  if(!fbUser) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(function(){
+    db.collection('users').doc(fbUser.uid).set({
+      profileName: state.profileName,
+      savedPlaces: state.savedPlaces,
+      connections: state.connections,
+      blocked: state.blocked,
+      flaggedByMe: state.flaggedByMe,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true }).catch(function(err){
+      console.error('Sync failed', err);
+      toast('Could not save — check your connection.');
+    });
+  }, 500);
+}
+
+/* Real, shared community flag counts — every visitor (Guest or User) reads the
+   same live numbers, matching biteScout's "trust from real community activity" philosophy. */
+function loadFlagCounts(){
+  PLACES.forEach(function(p){
+    db.collection('flagCounts').doc(p.id).get().then(function(doc){
+      state.flagCounts[p.id] = doc.exists ? (doc.data().count || 0) : 0;
+      render();
+    }).catch(function(){ /* fall back to local count silently if offline */ });
+  });
+}
+
 /* ============ INIT ============ */
 setTier('guest');
 setTab('discover');
 renderOnboardingSlide();
 setupOnboardingSwipe();
+loadFlagCounts();
 
 // Show the big logo briefly, then reveal the app
 setTimeout(()=>{
