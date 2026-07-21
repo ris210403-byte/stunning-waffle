@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kaki-jalan-v27';
+const CACHE_NAME = 'kaki-jalan-v28';
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png', './splash-logo.png'];
 
 self.addEventListener('install', (event) => {
