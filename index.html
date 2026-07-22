@@ -362,6 +362,11 @@
     font-size:22px;
     letter-spacing:0.2px;
   }
+  .topbar-actions{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
   .settings-gear{
     background:var(--paper-dim);
     color:var(--ink);
@@ -369,6 +374,46 @@
     border-radius:50%;
     width:34px;height:34px;
     font-size:15px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .notif-badge{
+    position:absolute;
+    top:-2px; right:-2px;
+    min-width:15px; height:15px;
+    background:var(--chili);
+    border:2px solid var(--ink);
+    border-radius:8px;
+    color:#fff;
+    font-size:9px;
+    font-weight:700;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:0 3px;
+    line-height:1;
+  }
+  .update-banner{
+    margin-top:10px;
+    background:rgba(255,255,255,0.14);
+    border-radius:12px;
+    padding:9px 12px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    font-size:12px;
+    color:#fff;
+  }
+  .update-banner button{
+    background:#fff;
+    color:var(--ink);
+    border:none;
+    border-radius:12px;
+    padding:6px 12px;
+    font-family:inherit;
+    font-weight:700;
+    font-size:11px;
     cursor:pointer;
     flex-shrink:0;
   }
@@ -705,6 +750,19 @@
     font-size:11.5px;
     color:#6B7280;
     margin-top:2px;
+  }
+  .trust-line{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    font-size:11.5px;
+    font-weight:700;
+    color:var(--ink);
+    margin-top:5px;
+  }
+  .trust-line-new{
+    color:var(--accent);
+    font-weight:600;
   }
   .tag-row{
     display:flex;
@@ -1523,6 +1581,14 @@
   <div class="settings-body" id="settingsBody"></div>
 </div>
 
+<div class="settings-screen hide" id="notifScreen">
+  <div class="settings-header">
+    <div class="settings-title">Notifications</div>
+    <button class="settings-close" id="notifCloseBtn" onclick="closeNotifications()"></button>
+  </div>
+  <div class="settings-body" id="notifBody"></div>
+</div>
+
 <div class="nickname-screen hide" id="nicknameScreen">
   <div class="welcome-logo-wrap">
     <img src="splash-logo.png" alt="biteScout">
@@ -1548,9 +1614,15 @@
   <div class="topbar" id="topbar">
     <div class="brand-row">
       <div id="brandArea"></div>
-      <button class="settings-gear" id="settingsGearBtn" onclick="openSettings()" title="Settings" style="display:none;"></button>
+      <div class="topbar-actions">
+        <button class="settings-gear" id="notifBellBtn" onclick="openNotifications()" title="Notifications" style="display:none;position:relative;">
+          <span id="notifBadge" class="notif-badge" style="display:none;"></span>
+        </button>
+        <button class="settings-gear" id="settingsGearBtn" onclick="openSettings()" title="Settings" style="display:none;"></button>
+      </div>
     </div>
     <div id="exploreToggleArea"></div>
+    <div id="updateBanner"></div>
     <div id="upgradeBanner"></div>
   </div>
 
@@ -1619,6 +1691,7 @@ const ICON_PATHS = {
   'landmark': `<path d="M10 18v-7" /> <path d="M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z" /> <path d="M14 18v-7" /> <path d="M18 18v-7" /> <path d="M3 22h18" /> <path d="M6 18v-7" />`,
   'anchor': `<path d="M12 6v16" /> <path d="m19 13 2-1a9 9 0 0 1-18 0l2 1" /> <path d="M9 11h6" /> <circle cx="12" cy="4" r="2" />`,
   'arrow-left': `<path d="m12 19-7-7 7-7" /> <path d="M19 12H5" />`,
+  'bell': `<path d="M10.268 21a2 2 0 0 0 3.464 0" /> <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />`,
 };
 
 function icon(name, opts){
@@ -1890,9 +1963,59 @@ function loadCommunityActivity(){
       return { id: doc.id, ...d, createdAtMs: (d.createdAt && d.createdAt.toMillis) ? d.createdAt.toMillis() : null };
     });
     if(state.tab === 'people') render();
+    refreshNotifBadge();
   }).catch(function(err){
     console.error('Failed to load community activity', err);
   });
+}
+
+/* In-app notification bell — shows a badge for new community activity since
+   you last checked. Deliberately NOT push notifications (that needs Firebase
+   Cloud Messaging + permission prompts + real backend infra); this is the
+   lighter, in-app version that still solves "I forgot to check Community." */
+function getLastSeenNotifTime(){
+  try{ return parseInt(localStorage.getItem('bitescout_notif_last_seen') || '0', 10); }
+  catch(e){ return 0; }
+}
+
+function setLastSeenNotifTime(ms){
+  try{ localStorage.setItem('bitescout_notif_last_seen', String(ms)); }catch(e){ /* private browsing etc */ }
+}
+
+function refreshNotifBadge(){
+  const badge = document.getElementById('notifBadge');
+  if(!badge) return;
+  const lastSeen = getLastSeenNotifTime();
+  const unseen = COMMUNITY_ACTIVITY.filter(a =>
+    a.createdAtMs && a.createdAtMs > lastSeen && (!fbUser || a.uid !== fbUser.uid)
+  );
+  if(unseen.length > 0){
+    badge.textContent = unseen.length > 9 ? '9+' : String(unseen.length);
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function openNotifications(){
+  const el = document.getElementById('notifScreen');
+  if(!el) return;
+  document.getElementById('notifBody').innerHTML = notifBodyHtml();
+  el.classList.remove('hide');
+  setLastSeenNotifTime(Date.now());
+  refreshNotifBadge();
+}
+
+function closeNotifications(){
+  const el = document.getElementById('notifScreen');
+  if(el) el.classList.add('hide');
+}
+
+function notifBodyHtml(){
+  if(COMMUNITY_ACTIVITY.length === 0){
+    return `<div class="empty-note">No activity yet — once people start saving and adding places, it'll show up here.</div>`;
+  }
+  return activityFeedHtml();
 }
 
 function relativeTime(ms){
@@ -1984,17 +2107,20 @@ function renderBrandArea(){
   const el = document.getElementById('brandArea');
   const topbar = document.getElementById('topbar');
   const gear = document.getElementById('settingsGearBtn');
+  const bell = document.getElementById('notifBellBtn');
   const toggleArea = document.getElementById('exploreToggleArea');
   const isExplore = (state.tab === 'discover' || state.tab === 'map');
   if(!isExplore){
     el.innerHTML = '';
     topbar.classList.add('topbar-compact');
     if(gear) gear.style.display = 'none';
+    if(bell) bell.style.display = 'none';
     if(toggleArea) toggleArea.innerHTML = '';
     return;
   }
   topbar.classList.remove('topbar-compact');
   if(gear) gear.style.display = '';
+  if(bell) bell.style.display = '';
   const displayName = isGuest() ? state.guestDisplayId : (state.profileName || 'Harris');
   el.innerHTML = `
     <div class="brand">
@@ -2186,6 +2312,10 @@ function placeCardHtml(p){
     const d = distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng);
     distPill = `<span class="distance-pill">${formatDistance(d)}</span>`;
   }
+  const saveCount = p.saveCount || 0;
+  const trustLine = saveCount > 0
+    ? `<div class="trust-line">${icon('check',{size:12,color:'#0F6DBE'})} ${saveCount} real ${saveCount===1?'save':'saves'}</div>`
+    : `<div class="trust-line trust-line-new">New — be the first to save this</div>`;
   return `
       <div class="place-card">
         <div class="place-photo">${p.icon}</div>
@@ -2194,8 +2324,9 @@ function placeCardHtml(p){
             <span class="kind-pill ${p.kind}">${p.kind==='food'?'Food':'Place'}</span>${distPill}
             <div class="place-name">${p.name}</div>
             <div class="place-meta">${p.area} · ${p.cat}</div>
+            ${trustLine}
           </div>
-          <div class="stars">${starRow(p.rating)}</div>
+          ${p.rating > 0 ? `<div class="stars">${starRow(p.rating)}</div>` : ''}
         </div>
         <div class="tag-row">${p.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>
         ${flagBadge(p)}
@@ -2392,12 +2523,21 @@ function linkButton(p){
 
 function toggleSave(id){
   const cap = isGuest() ? CAPS.guest.saves : Infinity;
+  const p = PLACES.find(x=>x.id===id);
   if(state.savedPlaces.includes(id)){
     state.savedPlaces = state.savedPlaces.filter(x=>x!==id);
+    if(fbUser && p){
+      p.saveCount = Math.max(0, (p.saveCount||1) - 1);
+      db.collection('places').doc(id).set({ saveCount: firebase.firestore.FieldValue.increment(-1) }, { merge: true }).catch(function(){});
+    }
   } else {
     if(state.savedPlaces.length >= cap){ capToast('save'); return; }
     state.savedPlaces.push(id);
     logActivity(id);
+    if(fbUser && p){
+      p.saveCount = (p.saveCount||0) + 1;
+      db.collection('places').doc(id).set({ saveCount: firebase.firestore.FieldValue.increment(1) }, { merge: true }).catch(function(){});
+    }
   }
   syncUserData();
   render();
@@ -2852,7 +2992,7 @@ function findAnyPlace(id){
 function addDiscoveredPlace(id){
   const p = currentCandidatePlace && currentCandidatePlace.id === id ? currentCandidatePlace : null;
   if(!p) return;
-  const newPlace = { id:p.id, name:p.name, area:p.area, cat:p.cat, kind:p.kind, icon:p.icon, rating:0, tags:[], link:null, lat:p.lat, lng:p.lng };
+  const newPlace = { id:p.id, name:p.name, area:p.area, cat:p.cat, kind:p.kind, icon:p.icon, rating:0, tags:[], link:null, lat:p.lat, lng:p.lng, saveCount:1 };
   PLACES.push(newPlace);
   currentCandidatePlace = null;
   if(!state.savedPlaces.includes(newPlace.id)) state.savedPlaces.push(newPlace.id);
@@ -2866,7 +3006,7 @@ function addDiscoveredPlace(id){
   db.collection('places').doc(newPlace.id).set({
     name: newPlace.name, area: newPlace.area, cat: newPlace.cat, kind: newPlace.kind,
     icon: newPlace.icon, rating: newPlace.rating, tags: newPlace.tags, link: newPlace.link,
-    lat: newPlace.lat, lng: newPlace.lng,
+    lat: newPlace.lat, lng: newPlace.lng, saveCount: 1,
     addedBy: fbUser ? fbUser.uid : null,
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
   }).catch(function(err){ console.error('Failed to persist new place', err); });
@@ -3820,6 +3960,8 @@ document.getElementById('icNavMe').innerHTML = icon('circle-user', {size:20});
 document.getElementById('settingsCloseBtn').innerHTML = icon('x', {size:14});
 document.getElementById('toastLockIc').innerHTML = icon('lock', {size:13});
 document.getElementById('settingsGearBtn').innerHTML = icon('settings', {size:16});
+document.getElementById('notifBellBtn').insertAdjacentHTML('afterbegin', icon('bell', {size:16}));
+document.getElementById('notifCloseBtn').innerHTML = icon('x', {size:14});
 document.getElementById('mapDetailBackBtn').innerHTML = icon('arrow-left', {size:16});
 
 setTier('guest');
@@ -3859,9 +4001,28 @@ setTimeout(()=>{
 }, 1100);
 
 if('serviceWorker' in navigator){
+  // sw.js already calls skipWaiting()+clients.claim() immediately on install,
+  // so a new version takes control right away — but this already-open page
+  // keeps running its OLD code until reloaded. Detecting that handover (not
+  // a "waiting" state, which this setup skips straight past) is what a
+  // simple update banner actually needs here.
+  const hadControllerAlready = !!navigator.serviceWorker.controller;
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(()=>{ /* fine on plain file:// or no host */ });
   });
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if(hadControllerAlready) showUpdateBanner();
+  });
+}
+
+function showUpdateBanner(){
+  const el = document.getElementById('updateBanner');
+  if(!el) return;
+  el.innerHTML = `
+    <div class="update-banner">
+      <span>A new version is ready.</span>
+      <button onclick="window.location.reload()">Refresh</button>
+    </div>`;
 }
 </script>
 </body>
