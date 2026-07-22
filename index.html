@@ -16,6 +16,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
 <style>
   :root{
     --ink:#0F6DBE;
@@ -789,6 +790,19 @@
   .rate-stars span{
     cursor:pointer;
     display:flex;
+  }
+  .photo-strip{
+    display:flex;
+    gap:6px;
+    overflow-x:auto;
+    margin-top:10px;
+    padding-bottom:2px;
+  }
+  .photo-thumb{
+    width:64px;height:64px;
+    border-radius:10px;
+    object-fit:cover;
+    flex-shrink:0;
   }
   .tag-row{
     display:flex;
@@ -1655,6 +1669,7 @@
   <div class="content" id="content"></div>
 
   <div class="toast" id="toast"><span class="lock-ic" id="toastLockIc"></span><span id="toastText"></span></div>
+  <input type="file" accept="image/*" id="photoUploadInput" style="display:none;" onchange="handlePhotoSelected(event)">
 
   <div class="bottomnav">
     <button class="navbtn" data-tab="explore" onclick="setTab((state.tab==='discover'||state.tab==='map')?state.tab:'discover')"><span class="ic" id="icNavExplore"></span>Explore</button>
@@ -1680,6 +1695,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+const storage = firebase.storage();
 
 /* The real signed-in Firebase user, or null if browsing as Guest/demo-User (no account).
    Only a real fbUser gets Firestore persistence — the Guest/User toggle in the top bar
@@ -2378,8 +2394,16 @@ function placeCardHtml(p){
         </div>
         <div class="tag-row">${p.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>
         ${flagBadge(p)}
+        ${(p.photos && p.photos.length > 0) ? `
+        <div class="photo-strip">
+          ${p.photos.slice(-8).reverse().map(ph => `<img src="${ph.url}" alt="Photo by ${ph.displayName}" class="photo-thumb">`).join('')}
+        </div>` : ''}
         ${saved ? `
-        <div class="rate-section">
+        <div class="rate-section" style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;">
+          <div class="rate-label">${(p.photos&&p.photos.length) ? `${p.photos.length} real photo${p.photos.length===1?'':'s'} from real visits` : 'Add a real photo from your visit'}</div>
+          <button class="btn btn-ghost" style="flex-shrink:0;" onclick="triggerPhotoUpload('${p.id}')">${icon('camera',{size:13})} Add photo</button>
+        </div>
+        <div class="rate-section" style="margin-top:8px;">
           <div class="rate-label">${myRating ? `Your rating: ${myRating}★ — tap to change` : 'Rate this place (your honest opinion)'}</div>
           <div class="rate-stars">
             ${[1,2,3,4,5].map(n => `<span onclick="submitRating('${p.id}',${n})">${icon('star',{size:22,filled:n<=myRating,color:n<=myRating?'#FFC145':'#D9D3C4'})}</span>`).join('')}
@@ -2716,6 +2740,89 @@ function logVisit(placeId){
     const body = document.getElementById('discoverBody');
     if(body) body.innerHTML = renderDiscoverBody();
   }
+}
+
+/* ============ PHOTOS ============ */
+/* Real photo uploads, tied to a specific place — only for people who've saved
+   it (same "you have to have actually gone" principle as ratings and visits).
+   Shared/visible to everyone, since a real photo from a real visit is about
+   as strong a trust signal as this app can offer. Resized client-side before
+   upload so a 12MB phone photo doesn't become a slow, expensive upload. */
+function resizeImageFile(file, maxDim, quality){
+  return new Promise(function(resolve, reject){
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = function(e){
+      img.onload = function(){
+        let w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; }
+        else if(h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob(function(blob){
+          if(blob) resolve(blob); else reject(new Error('Could not process image'));
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = function(){ reject(new Error('Could not read image')); };
+      img.src = e.target.result;
+    };
+    reader.onerror = function(){ reject(new Error('Could not read file')); };
+    reader.readAsDataURL(file);
+  });
+}
+
+function triggerPhotoUpload(placeId){
+  if(isGuest()){ capToast('photo'); return; }
+  const input = document.getElementById('photoUploadInput');
+  if(!input) return;
+  input.dataset.placeId = placeId;
+  input.click();
+}
+
+function handlePhotoSelected(event){
+  const placeId = event.target.dataset.placeId;
+  const file = event.target.files && event.target.files[0];
+  event.target.value = ''; // reset so selecting the same file again still fires onchange
+  if(!file || !placeId || !fbUser) return;
+  const p = PLACES.find(x=>x.id===placeId);
+  if(!p) return;
+
+  toast('Uploading photo…');
+  resizeImageFile(file, 1200, 0.8)
+    .then(function(blob){
+      const path = `place-photos/${placeId}/${fbUser.uid}_${Date.now()}.jpg`;
+      return storage.ref(path).put(blob);
+    })
+    .then(function(snapshot){ return snapshot.ref.getDownloadURL(); })
+    .then(function(url){
+      const photoEntry = {
+        url: url,
+        uid: fbUser.uid,
+        displayName: state.profileName || 'A biteScout member',
+        uploadedAt: Date.now(), // plain client timestamp — arrayUnion can't take serverTimestamp() inside array elements
+      };
+      p.photos = p.photos || [];
+      p.photos.push(photoEntry);
+      return db.collection('places').doc(placeId).set({
+        photos: firebase.firestore.FieldValue.arrayUnion(photoEntry),
+      }, { merge: true });
+    })
+    .then(function(){
+      toast('Photo added!');
+      const detailScreen = document.getElementById('mapDetailScreen');
+      if(detailScreen && !detailScreen.classList.contains('hide')){
+        document.getElementById('mapDetailBody').innerHTML = placeCardHtml(p);
+      }
+      if(state.tab === 'discover'){
+        const body = document.getElementById('discoverBody');
+        if(body) body.innerHTML = renderDiscoverBody();
+      }
+    })
+    .catch(function(err){
+      console.error('Photo upload failed:', err);
+      toast('Could not upload photo — check your connection and try again.');
+    });
 }
 
 function capToast(kind){
@@ -3392,17 +3499,7 @@ function renderDiary(){
 }
 
 function renderDiaryBody(){
-  let html = `
-    <div class="place-card">
-      <div class="place-name" style="font-size:14px;margin-bottom:8px;">New entry</div>
-      <div class="tag-row" style="margin-bottom:10px;">
-        <span class="tag">Food ★★★★☆</span><span class="tag">Service ★★★★★</span><span class="tag">Place ★★★★☆</span>
-      </div>
-      ${isGuest()
-        ? `<button class="btn btn-locked" onclick="capToast('photo')">${icon('camera',{size:13})} Add photo (User only)</button>`
-        : `<button class="btn btn-primary">${icon('camera',{size:13})} Add photo</button>`
-      }
-    </div>`;
+  let html = '';
 
   const q = state.diarySearchOpen ? state.diarySearchQuery.trim().toLowerCase() : '';
 
