@@ -764,6 +764,32 @@
     color:var(--accent);
     font-weight:600;
   }
+  .rating-count{
+    font-size:10.5px;
+    color:#6B7280;
+    margin-top:3px;
+    text-align:right;
+  }
+  .rate-section{
+    background:var(--paper-dim);
+    border-radius:var(--r-md);
+    padding:10px 12px;
+    margin-top:10px;
+  }
+  .rate-label{
+    font-size:11.5px;
+    font-weight:700;
+    color:var(--coffee);
+    margin-bottom:6px;
+  }
+  .rate-stars{
+    display:flex;
+    gap:4px;
+  }
+  .rate-stars span{
+    cursor:pointer;
+    display:flex;
+  }
   .tag-row{
     display:flex;
     gap:6px;
@@ -1692,6 +1718,7 @@ const ICON_PATHS = {
   'anchor': `<path d="M12 6v16" /> <path d="m19 13 2-1a9 9 0 0 1-18 0l2 1" /> <path d="M9 11h6" /> <circle cx="12" cy="4" r="2" />`,
   'arrow-left': `<path d="m12 19-7-7 7-7" /> <path d="M19 12H5" />`,
   'bell': `<path d="M10.268 21a2 2 0 0 0 3.464 0" /> <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />`,
+  'award': `<path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526" /> <circle cx="12" cy="8" r="6" />`,
 };
 
 function icon(name, opts){
@@ -1786,6 +1813,9 @@ const state = {
   mapSearchQuery: '',
   selectedMapPlaceId: null,
   activeRoute: null,
+  myRatings: {}, // { placeId: 1-5 } — this person's own star ratings, synced via their user doc
+  visitCounts: {}, // { placeId: count } — how many times this person has logged a return visit
+  lastVisitLoggedAt: {}, // { placeId: timestampMs } — cooldown so the count can't be spam-tapped
   onboardingIndex: 0,
 };
 
@@ -1806,6 +1836,17 @@ let currentCandidatePlace = null;
    to a food/place kind + icon, so a tapped map label can become a properly
    colored biteScout pin once added. Not exhaustive — OpenMapTiles has many
    possible classes — falls back to a generic place icon for anything unlisted. */
+/* Auto-tier badge based on real visit count — an unfakeable popularity signal,
+   separate from the personal star rating (which answers "is it actually
+   good?" rather than "do people actually go?"). Both are honest, both matter. */
+function tierForSaveCount(count){
+  if(count >= 100) return { label: 'Double Gold', color: '#B8860B' };
+  if(count >= 80) return { label: 'Gold', color: '#D4A24C' };
+  if(count >= 50) return { label: 'Silver', color: '#9CA3AF' };
+  if(count >= 20) return { label: 'Bronze', color: '#CD7F32' };
+  return null;
+}
+
 function poiClassMeta(cls){
   const iconMap = {
     restaurant:'🍽️', cafe:'☕', bar:'🍸', fast_food:'🍔', pub:'🍺', ice_cream:'🍦', food_court:'🍽️',
@@ -1910,7 +1951,9 @@ function loadAdoptedPlaces(){
     let addedAny = false;
     snap.forEach(function(doc){
       if(!PLACES.find(p=>p.id===doc.id)){
-        PLACES.push({ id: doc.id, ...doc.data() });
+        const d = doc.data();
+        const computedRating = (d.ratingCount && d.ratingCount > 0) ? (d.ratingSum / d.ratingCount) : 0;
+        PLACES.push({ id: doc.id, ...d, rating: computedRating });
         addedAny = true;
       }
     });
@@ -2313,9 +2356,14 @@ function placeCardHtml(p){
     distPill = `<span class="distance-pill">${formatDistance(d)}</span>`;
   }
   const saveCount = p.saveCount || 0;
+  const tier = tierForSaveCount(saveCount);
+  const regularsCount = p.regularsCount || 0;
   const trustLine = saveCount > 0
-    ? `<div class="trust-line">${icon('check',{size:12,color:'#0F6DBE'})} ${saveCount} real ${saveCount===1?'save':'saves'}</div>`
+    ? `<div class="trust-line">${icon('check',{size:12,color:'#0F6DBE'})} ${saveCount} real ${saveCount===1?'save':'saves'}${tier ? ` · <span style="color:${tier.color}">${icon('award',{size:12,color:tier.color})} ${tier.label}</span>` : ''}${regularsCount > 0 ? ` · ${regularsCount} regular${regularsCount===1?'':'s'} (${REGULAR_THRESHOLD}+ visits)` : ''}</div>`
     : `<div class="trust-line trust-line-new">New — be the first to save this</div>`;
+  const ratingCount = p.ratingCount || 0;
+  const myRating = (state.myRatings && state.myRatings[p.id]) || 0;
+  const myVisits = (state.visitCounts && state.visitCounts[p.id]) || 0;
   return `
       <div class="place-card">
         <div class="place-photo">${p.icon}</div>
@@ -2326,10 +2374,24 @@ function placeCardHtml(p){
             <div class="place-meta">${p.area} · ${p.cat}</div>
             ${trustLine}
           </div>
-          ${p.rating > 0 ? `<div class="stars">${starRow(p.rating)}</div>` : ''}
+          ${ratingCount > 0 ? `<div style="text-align:right;"><div class="stars">${starRow(p.rating)}</div><div class="rating-count">${p.rating.toFixed(1)} · ${ratingCount} rating${ratingCount===1?'':'s'}</div></div>` : ''}
         </div>
         <div class="tag-row">${p.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>
         ${flagBadge(p)}
+        ${saved ? `
+        <div class="rate-section">
+          <div class="rate-label">${myRating ? `Your rating: ${myRating}★ — tap to change` : 'Rate this place (your honest opinion)'}</div>
+          <div class="rate-stars">
+            ${[1,2,3,4,5].map(n => `<span onclick="submitRating('${p.id}',${n})">${icon('star',{size:22,filled:n<=myRating,color:n<=myRating?'#FFC145':'#D9D3C4'})}</span>`).join('')}
+          </div>
+        </div>
+        <div class="rate-section" style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div class="rate-label">${myVisits > 0 ? `You've visited ${myVisits} time${myVisits===1?'':'s'}` : "Been back since saving?"}</div>
+            ${myVisits >= REGULAR_THRESHOLD ? `<div style="font-size:11px;color:#CD7F32;font-weight:700;">${icon('award',{size:11,color:'#CD7F32'})} You're a regular here</div>` : ''}
+          </div>
+          <button class="btn btn-ghost" style="flex-shrink:0;" onclick="logVisit('${p.id}')">${icon('check',{size:13})} Log a visit</button>
+        </div>` : ''}
         <div class="place-actions">
           ${saveBtn}
           <button class="btn btn-ghost" onclick="startInAppDirections('${p.id}')">${icon('compass',{size:13})} Directions</button>
@@ -2559,6 +2621,101 @@ function logActivity(placeId){
     placeKind: p.kind,
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
   }).catch(function(err){ console.error('Failed to log activity', err); });
+}
+
+/* Personal star ratings — deliberately only available to people who've saved
+   the place (you have to have actually gone to vouch for it, same principle
+   as the rest of biteScout). Kept separate from the visit-count tier badge:
+   that answers "do people actually go?", this answers "is it any good?".
+   Stores the average as ratingSum/ratingCount on the shared place doc (so it
+   can be updated atomically without a transaction) and this person's own
+   pick inside their own user doc, so re-rating adjusts the average correctly
+   instead of just piling on another vote. */
+function submitRating(placeId, stars){
+  if(!fbUser) return;
+  const p = PLACES.find(x=>x.id===placeId);
+  if(!p) return;
+
+  const prevRating = (state.myRatings && state.myRatings[placeId]) || 0;
+  const delta = stars - prevRating;
+  const countDelta = prevRating === 0 ? 1 : 0;
+
+  state.myRatings = state.myRatings || {};
+  state.myRatings[placeId] = stars;
+
+  p.ratingSum = (p.ratingSum || 0) + delta;
+  p.ratingCount = (p.ratingCount || 0) + countDelta;
+  p.rating = p.ratingCount > 0 ? (p.ratingSum / p.ratingCount) : 0;
+
+  syncUserData(); // persists state.myRatings via the user's own doc
+
+  db.collection('places').doc(placeId).set({
+    ratingSum: firebase.firestore.FieldValue.increment(delta),
+    ratingCount: firebase.firestore.FieldValue.increment(countDelta),
+  }, { merge: true }).catch(function(err){ console.error('Failed to submit rating', err); });
+
+  toast('Rating saved — thanks!');
+
+  renderMapMarkers(currentMapPlaceList());
+  const detailScreen = document.getElementById('mapDetailScreen');
+  if(detailScreen && !detailScreen.classList.contains('hide')){
+    document.getElementById('mapDetailBody').innerHTML = placeCardHtml(p);
+  }
+  if(state.tab === 'discover'){
+    const body = document.getElementById('discoverBody');
+    if(body) body.innerHTML = renderDiscoverBody();
+  }
+}
+
+const REGULAR_THRESHOLD = 10;
+const VISIT_COOLDOWN_MS = 20 * 60 * 60 * 1000; // ~once per day, with buffer for people who go at similar times
+
+/* Logs a real return visit — the strongest trust signal biteScout has, since
+   someone who keeps coming back is voting with their actual behavior, not
+   just a one-time bookmark. The cooldown below is a deliberate, honest
+   safeguard: without it, this number could be faked in ten seconds of
+   tapping, which would make it worthless as "proof." A client-side cooldown
+   is a good-faith deterrent, not a tamper-proof one — a fully abuse-proof
+   version would need server-side validation (a Cloud Function), which is a
+   bigger backend project worth doing once this matters at real scale. */
+function logVisit(placeId){
+  if(!fbUser) return;
+  const p = PLACES.find(x=>x.id===placeId);
+  if(!p) return;
+
+  const lastLogged = (state.lastVisitLoggedAt && state.lastVisitLoggedAt[placeId]) || 0;
+  if(Date.now() - lastLogged < VISIT_COOLDOWN_MS){
+    toast("You've already logged a visit here recently — try again tomorrow.");
+    return;
+  }
+
+  state.visitCounts = state.visitCounts || {};
+  state.lastVisitLoggedAt = state.lastVisitLoggedAt || {};
+  const prevCount = state.visitCounts[placeId] || 0;
+  const newCount = prevCount + 1;
+  state.visitCounts[placeId] = newCount;
+  state.lastVisitLoggedAt[placeId] = Date.now();
+
+  syncUserData();
+
+  if(prevCount < REGULAR_THRESHOLD && newCount >= REGULAR_THRESHOLD){
+    p.regularsCount = (p.regularsCount || 0) + 1;
+    db.collection('places').doc(placeId).set({
+      regularsCount: firebase.firestore.FieldValue.increment(1),
+    }, { merge: true }).catch(function(err){ console.error('Failed to update regulars count', err); });
+    toast(`You're now a regular here! (${newCount} visits)`);
+  } else {
+    toast(`Visit logged — ${newCount} time${newCount===1?'':'s'}!`);
+  }
+
+  const detailScreen = document.getElementById('mapDetailScreen');
+  if(detailScreen && !detailScreen.classList.contains('hide')){
+    document.getElementById('mapDetailBody').innerHTML = placeCardHtml(p);
+  }
+  if(state.tab === 'discover'){
+    const body = document.getElementById('discoverBody');
+    if(body) body.innerHTML = renderDiscoverBody();
+  }
 }
 
 function capToast(kind){
@@ -3897,6 +4054,9 @@ auth.onAuthStateChanged(function(user){
         state.connections = d.connections || [];
         state.blocked = d.blocked || [];
         state.flaggedByMe = d.flaggedByMe || [];
+        state.myRatings = d.myRatings || {};
+        state.visitCounts = d.visitCounts || {};
+        state.lastVisitLoggedAt = d.lastVisitLoggedAt || {};
       }
       setTier('user');
       dismissWelcomeScreen(); // returning signed-in session — skip straight past Welcome
@@ -3921,6 +4081,9 @@ function syncUserData(){
       connections: state.connections,
       blocked: state.blocked,
       flaggedByMe: state.flaggedByMe,
+      myRatings: state.myRatings,
+      visitCounts: state.visitCounts,
+      lastVisitLoggedAt: state.lastVisitLoggedAt,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     }, { merge: true }).catch(function(err){
       console.error('Sync failed', err);
