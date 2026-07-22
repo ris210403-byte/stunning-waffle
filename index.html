@@ -373,6 +373,36 @@
     flex-shrink:0;
   }
 
+  .explore-toggle{
+    display:flex;
+    gap:4px;
+    background:rgba(255,255,255,0.14);
+    border-radius:14px;
+    padding:3px;
+    margin-top:10px;
+    width:fit-content;
+  }
+  .explore-toggle button{
+    display:flex;
+    align-items:center;
+    gap:5px;
+    border:none;
+    background:transparent;
+    color:#fff;
+    opacity:0.7;
+    padding:6px 12px;
+    border-radius:11px;
+    font-family:inherit;
+    font-weight:700;
+    font-size:12px;
+    cursor:pointer;
+  }
+  .explore-toggle button.active{
+    background:#fff;
+    color:var(--ink);
+    opacity:1;
+  }
+
   /* ===== Settings overlay ===== */
   .settings-screen{
     position:fixed;
@@ -1079,6 +1109,38 @@
   .person-name{ font-weight:700; font-size:13.5px; color:var(--coffee); }
   .person-badge{ font-size:10px; color:var(--leaf); font-weight:700; }
   .person-actions{ display:flex; gap:6px; }
+  .activity-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    background:var(--card-bg);
+    border-radius:var(--r-lg);
+    padding:10px 12px;
+    margin-bottom:10px;
+    box-shadow:0 3px 10px rgba(59,42,30,0.06);
+  }
+  .activity-avatar{
+    width:38px;height:38px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Plus Jakarta Sans',sans-serif;
+    font-weight:700;
+    color:#fff;
+    font-size:14px;
+    flex-shrink:0;
+  }
+  .activity-info{ flex:1; min-width:0; }
+  .activity-line{
+    font-size:13px;
+    color:var(--coffee);
+    line-height:1.4;
+  }
+  .activity-line strong{ font-weight:700; }
+  .activity-meta{
+    font-size:11px;
+    color:#6B7280;
+    margin-top:2px;
+  }
   .icon-btn{
     width:30px;height:30px;
     border-radius:50%;
@@ -1488,6 +1550,7 @@
       <div id="brandArea"></div>
       <button class="settings-gear" id="settingsGearBtn" onclick="openSettings()" title="Settings" style="display:none;"></button>
     </div>
+    <div id="exploreToggleArea"></div>
     <div id="upgradeBanner"></div>
   </div>
 
@@ -1496,10 +1559,9 @@
   <div class="toast" id="toast"><span class="lock-ic" id="toastLockIc"></span><span id="toastText"></span></div>
 
   <div class="bottomnav">
-    <button class="navbtn" data-tab="discover" onclick="setTab('discover')"><span class="ic" id="icNavDiscover"></span>Discover</button>
-    <button class="navbtn" data-tab="map" onclick="setTab('map')"><span class="ic" id="icNavMap"></span>Map</button>
+    <button class="navbtn" data-tab="explore" onclick="setTab((state.tab==='discover'||state.tab==='map')?state.tab:'discover')"><span class="ic" id="icNavExplore"></span>Explore</button>
     <button class="navbtn" data-tab="diary" onclick="setTab('diary')"><span class="ic" id="icNavDiary"></span>Diary</button>
-    <button class="navbtn" data-tab="people" onclick="setTab('people')"><span class="ic" id="icNavPeople"></span>People</button>
+    <button class="navbtn" data-tab="community" onclick="setTab('people')"><span class="ic" id="icNavCommunity"></span>Community</button>
     <button class="navbtn" data-tab="me" onclick="setTab('me')"><span class="ic" id="icNavMe"></span>Me</button>
   </div>
 </div>
@@ -1813,6 +1875,54 @@ function loadRealPeople(){
   }).catch(function(err){ console.error('Failed to load member directory', err); });
 }
 
+/* Real activity feed — this is what makes "trust from real visits, not
+   anonymous stars" something people actually SEE every time they open the
+   app, not just a line they read once during onboarding. Shows everyone's
+   recent saves for now (not just people you follow) since the member base is
+   still small — filtering to "following only" is a natural addition once
+   there's enough activity to make that meaningful. */
+let COMMUNITY_ACTIVITY = [];
+
+function loadCommunityActivity(){
+  db.collection('activity').orderBy('createdAt', 'desc').limit(30).get().then(function(snap){
+    COMMUNITY_ACTIVITY = snap.docs.map(function(doc){
+      const d = doc.data();
+      return { id: doc.id, ...d, createdAtMs: (d.createdAt && d.createdAt.toMillis) ? d.createdAt.toMillis() : null };
+    });
+    if(state.tab === 'people') render();
+  }).catch(function(err){
+    console.error('Failed to load community activity', err);
+  });
+}
+
+function relativeTime(ms){
+  if(!ms) return 'just now';
+  const diffSec = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if(diffSec < 60) return 'just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if(diffMin < 60) return diffMin + 'm ago';
+  const diffHr = Math.floor(diffMin / 60);
+  if(diffHr < 24) return diffHr + 'h ago';
+  return Math.floor(diffHr / 24) + 'd ago';
+}
+
+function activityFeedHtml(){
+  if(COMMUNITY_ACTIVITY.length === 0){
+    return `<div class="empty-note">No activity yet — be the first to save or add a place, and it'll show up here for everyone.</div>`;
+  }
+  return COMMUNITY_ACTIVITY.map(function(a){
+    const initial = (a.displayName || '?').trim()[0] || '?';
+    return `
+      <div class="activity-row">
+        <div class="activity-avatar" style="background:${colorForId(a.uid || a.id)}">${initial}</div>
+        <div class="activity-info">
+          <div class="activity-line"><strong>${a.displayName || 'A biteScout member'}</strong> saved <strong>${a.placeName || 'a place'}</strong></div>
+          <div class="activity-meta">${a.placeIcon || ''} ${relativeTime(a.createdAtMs)}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
 /* ============ HELPERS ============ */
 function toast(msg){
   const t = document.getElementById('toast');
@@ -1848,7 +1958,13 @@ function setTier(t){
 
 function setTab(t){
   state.tab = t;
-  document.querySelectorAll('.navbtn').forEach(b=> b.classList.toggle('active', b.dataset.tab===t));
+  document.querySelectorAll('.navbtn').forEach(b=>{
+    const key = b.dataset.tab;
+    const isActive = key === t
+      || (key === 'explore' && (t === 'discover' || t === 'map'))
+      || (key === 'community' && t === 'people');
+    b.classList.toggle('active', isActive);
+  });
   render();
 }
 
@@ -1868,10 +1984,13 @@ function renderBrandArea(){
   const el = document.getElementById('brandArea');
   const topbar = document.getElementById('topbar');
   const gear = document.getElementById('settingsGearBtn');
-  if(state.tab !== 'discover'){
+  const toggleArea = document.getElementById('exploreToggleArea');
+  const isExplore = (state.tab === 'discover' || state.tab === 'map');
+  if(!isExplore){
     el.innerHTML = '';
     topbar.classList.add('topbar-compact');
     if(gear) gear.style.display = 'none';
+    if(toggleArea) toggleArea.innerHTML = '';
     return;
   }
   topbar.classList.remove('topbar-compact');
@@ -1882,6 +2001,13 @@ function renderBrandArea(){
       <div class="brand-mark"><img src="icon-192.png" alt="biteScout logo"></div>
       <div class="brand-name">${displayName}</div>
     </div>`;
+  if(toggleArea){
+    toggleArea.innerHTML = `
+      <div class="explore-toggle">
+        <button class="${state.tab==='discover'?'active':''}" onclick="setTab('discover')">${icon('search',{size:13})} List</button>
+        <button class="${state.tab==='map'?'active':''}" onclick="setTab('map')">${icon('map-pin',{size:13})} Map</button>
+      </div>`;
+  }
 }
 
 /* ============ RENDER ============ */
@@ -1960,10 +2086,8 @@ function applyWallpaper(shell){
 }
 
 function renderDiscover(){
-  let html = `<div class="section-title" style="margin-top:-6px;margin-bottom:12px;">Discover</div>`;
-
-  html += `
-    <div class="search-bar">
+  let html = `
+    <div class="search-bar" style="margin-top:2px;">
       <span class="search-ic">${icon('search', {size:15})}</span>
       <input id="searchInput" placeholder="Search any place or food spot..." value="${state.searchQuery}" oninput="onSearchInput(this.value)">
       <span id="searchClearWrap">${state.searchQuery ? `<button class="search-clear" onclick="onSearchInput('')">${icon('x', {size:11})}</button>` : ''}</span>
@@ -2273,9 +2397,28 @@ function toggleSave(id){
   } else {
     if(state.savedPlaces.length >= cap){ capToast('save'); return; }
     state.savedPlaces.push(id);
+    logActivity(id);
   }
   syncUserData();
   render();
+}
+
+/* Records a real "saved this place" event to a shared, publicly-readable feed
+   — this is what powers the Community tab's activity feed. Only for real,
+   signed-in users (guests don't have an identity worth attributing this to). */
+function logActivity(placeId){
+  if(!fbUser) return;
+  const p = PLACES.find(x=>x.id===placeId);
+  if(!p) return;
+  db.collection('activity').add({
+    uid: fbUser.uid,
+    displayName: state.profileName || 'A biteScout member',
+    placeId: p.id,
+    placeName: p.name,
+    placeIcon: p.icon,
+    placeKind: p.kind,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+  }).catch(function(err){ console.error('Failed to log activity', err); });
 }
 
 function capToast(kind){
@@ -2714,6 +2857,7 @@ function addDiscoveredPlace(id){
   currentCandidatePlace = null;
   if(!state.savedPlaces.includes(newPlace.id)) state.savedPlaces.push(newPlace.id);
   syncUserData();
+  logActivity(newPlace.id);
 
   // Persist the actual place details too, not just the save reference — Firestore
   // only remembers *that* you saved something (the ID, via syncUserData above)
@@ -3029,7 +3173,7 @@ function setSortBy(s){
 }
 
 function renderPeople(){
-  let html = `<div class="section-eyebrow">Your circle</div><div class="section-title">People</div>`;
+  let html = `<div class="section-eyebrow">Community</div><div class="section-title">Recent activity</div>`;
 
   html += `<button class="people-add-toggle" onclick="togglePeopleSearch()">${state.peopleSearchOpen ? icon('x',{size:13})+' Close search' : icon('plus',{size:13})+' Find people'}</button>`;
 
@@ -3063,19 +3207,22 @@ function renderPeopleBody(){
       }
       return html;
     }
+
+    // Search open but nothing typed yet — browse the full member directory.
+    const withDist = state.userLocation
+      ? REAL_PEOPLE.map(p=>({ ...p, dist: distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng) })).sort((a,b)=>a.dist-b.dist)
+      : REAL_PEOPLE;
+    html += `<div class="section-eyebrow" style="margin-top:14px;">${icon('map-pin',{size:11})} biteScout members</div>`;
+    if(withDist.length===0){
+      html += `<div class="empty-note">No one else has joined biteScout yet — invite a friend to test it with you!</div>`;
+    }
+    withDist.forEach(p=> html += personRowHtml(p, cap, used, (state.userLocation && p.dist!=null) ? formatDistance(p.dist) : null));
+    return html;
   }
 
-  // Real signed-up biteScout members — loaded from Firestore (loadRealPeople()).
-  // No mock people anymore: an empty list here just means no one else has joined yet.
-  const withDist = state.userLocation
-    ? REAL_PEOPLE.map(p=>({ ...p, dist: distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng) })).sort((a,b)=>a.dist-b.dist)
-    : REAL_PEOPLE;
-
-  html += `<div class="section-eyebrow" style="margin-top:6px;">${icon('map-pin',{size:11})} biteScout members</div>`;
-  if(withDist.length===0){
-    html += `<div class="empty-note">No one else has joined biteScout yet — invite a friend to test it with you!</div>`;
-  }
-  withDist.forEach(p=> html += personRowHtml(p, cap, used, (state.userLocation && p.dist!=null) ? formatDistance(p.dist) : null));
+  // Default view: the real activity feed — this is what makes "trust from
+  // real visits" something people see every time, not a line from onboarding.
+  html += activityFeedHtml();
   return html;
 }
 
@@ -3204,6 +3351,19 @@ function renderMe(){
   } else {
     html += `
       <p class="settings-row-note" style="margin-bottom:14px;">Manage your name and account in <strong>Settings</strong>, on the Discover tab.</p>`;
+  }
+
+  if(fbUser && state.connections.length > 0){
+    const myConnections = REAL_PEOPLE.filter(p => state.connections.includes(p.id));
+    html += `<div class="section-eyebrow" style="margin-top:16px;">Following (${state.connections.length})</div>`;
+    myConnections.forEach(p => {
+      html += `
+        <div class="person-row">
+          <div class="person-avatar" style="background:${p.color}">${p.name[0]}</div>
+          <div class="person-info"><div class="person-name">${p.name}</div></div>
+          <button class="icon-btn" onclick="toggleConnect('${p.id}')" title="Unfollow">${icon('x',{size:14})}</button>
+        </div>`;
+    });
   }
 
   html += `
@@ -3653,10 +3813,9 @@ function loadFlagCounts(){
 }
 
 /* ============ INIT ============ */
-document.getElementById('icNavDiscover').innerHTML = '<img src="icon-192.png" alt="" style="width:20px;height:20px;object-fit:contain;">';
-document.getElementById('icNavMap').innerHTML = icon('map-pin', {size:20});
+document.getElementById('icNavExplore').innerHTML = '<img src="icon-192.png" alt="" style="width:20px;height:20px;object-fit:contain;">';
 document.getElementById('icNavDiary').innerHTML = icon('book-open', {size:20});
-document.getElementById('icNavPeople').innerHTML = icon('users', {size:20});
+document.getElementById('icNavCommunity').innerHTML = icon('users', {size:20});
 document.getElementById('icNavMe').innerHTML = icon('circle-user', {size:20});
 document.getElementById('settingsCloseBtn').innerHTML = icon('x', {size:14});
 document.getElementById('toastLockIc').innerHTML = icon('lock', {size:13});
@@ -3670,6 +3829,7 @@ setupOnboardingSwipe();
 loadFlagCounts();
 loadRealPeople();
 loadAdoptedPlaces();
+loadCommunityActivity();
 
 // Only first-time installs see the onboarding carousel — instantly hide it
 // (no animation) if this device has already been through it before.
