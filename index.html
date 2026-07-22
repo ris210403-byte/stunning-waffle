@@ -1660,34 +1660,38 @@ let currentRouteGeoJSON = null; // the active in-app route line, if any (survive
 let navWatchId = null; // navigator.geolocation.watchPosition id, for live position tracking during navigation
 let mapMarkers = [];
 
-/* Temporary, non-persisted points of interest shown after a broad area search
-   (e.g. searching "KL") — separate from PLACES, which are real biteScout
-   listings someone has actually vouched for. Cleared/replaced on each new
-   broad search. Uses Overpass API (OpenStreetMap's free POI query engine) —
-   no API key, same free/open stack as the rest of the map. */
-let DISCOVERED_PLACES = [];
-let discoveredMarkers = [];
+/* The last place the user tapped on the map that ISN'T yet a real biteScout
+   listing — found by querying the map's own built-in point-of-interest labels
+   (Liberty already renders these for free, no extra fetch needed), rather than
+   biteScout drawing its own separate discovery layer. Only becomes a real,
+   permanent pin once "Add to biteScout" is tapped. */
+let currentCandidatePlace = null;
 
-const POI_CATEGORY_MAP = {
-  mall: { label:'Shopping mall', icon:'🏬', kind:'place', group:'interest' },
-  supermarket: { label:'Supermarket', icon:'🛒', kind:'place', group:'interest' },
-  convenience: { label:'Convenience store', icon:'🏪', kind:'place', group:'interest' },
-  restaurant: { label:'Restaurant', icon:'🍽️', kind:'food', group:'interest' },
-  cafe: { label:'Cafe', icon:'☕', kind:'food', group:'interest' },
-  fast_food: { label:'Fast food', icon:'🍔', kind:'food', group:'interest' },
-  zoo: { label:'Zoo', icon:'🦁', kind:'place', group:'interest' },
-  museum: { label:'Museum', icon:'🏛️', kind:'place', group:'interest' },
-  park: { label:'Park', icon:'🌳', kind:'place', group:'interest' },
-  garden: { label:'Garden', icon:'🌳', kind:'place', group:'interest' },
-  fuel: { label:'Gas station', icon:'⛽', kind:'place', group:'utility' },
-  police: { label:'Police station', icon:'🚓', kind:'place', group:'utility' },
-  hospital: { label:'Hospital', icon:'🏥', kind:'place', group:'utility' },
-  clinic: { label:'Clinic', icon:'⚕️', kind:'place', group:'utility' },
-};
+/* Maps OpenMapTiles' POI "class" values (the map's own built-in categorization)
+   to a food/place kind + icon, so a tapped map label can become a properly
+   colored biteScout pin once added. Not exhaustive — OpenMapTiles has many
+   possible classes — falls back to a generic place icon for anything unlisted. */
+function poiClassMeta(cls){
+  const iconMap = {
+    restaurant:'🍽️', cafe:'☕', bar:'🍸', fast_food:'🍔', pub:'🍺', ice_cream:'🍦', food_court:'🍽️',
+    hospital:'🏥', clinic:'⚕️', doctors:'⚕️', police:'🚓', fuel:'⛽', pharmacy:'💊', fire_station:'🚒',
+    shop:'🛍️', supermarket:'🛒', convenience:'🏪', mall:'🏬', marketplace:'🏬',
+    park:'🌳', garden:'🌳', playground:'🛝', pitch:'🏟️', stadium:'🏟️',
+    hotel:'🏨', museum:'🏛️', zoo:'🦁', attraction:'📍', cinema:'🎬', theatre:'🎭',
+    bank:'🏦', school:'🏫', college:'🎓', university:'🎓', place_of_worship:'🛐',
+  };
+  const foodClasses = ['restaurant','cafe','bar','fast_food','pub','ice_cream','food_court'];
+  const label = (cls || 'place').replace(/_/g,' ');
+  return {
+    label: label.charAt(0).toUpperCase() + label.slice(1),
+    icon: iconMap[cls] || '📍',
+    kind: foodClasses.includes(cls) ? 'food' : 'place',
+  };
+}
 
 /* Classic teardrop map-pin shape (matches Harris's reference image) — used for
-   every pin on the map. anchor:'bottom' must be set on the Marker so the pin's
-   point (not its visual center) lands exactly on the coordinate. */
+   every pin biteScout draws itself. anchor:'bottom' must be set on the Marker
+   so the pin's point (not its visual center) lands exactly on the coordinate. */
 function mapPinSvg(color, size){
   size = size || 32;
   const width = Math.round(size * 0.78);
@@ -2347,7 +2351,7 @@ function renderMap(){
 
       <button class="locate-btn" onclick="onLocateMeClick()" title="Find my location">${icon('map-pin',{size:18})}</button>
 
-      <div class="map-bottom-sheet ${state.selectedMapPlaceId ? 'show' : ''}" id="mapBottomSheet">${state.selectedMapPlaceId ? mapBottomSheetHtml(PLACES.find(x=>x.id===state.selectedMapPlaceId)) : ''}</div>
+      <div class="map-bottom-sheet ${state.selectedMapPlaceId ? 'show' : ''}" id="mapBottomSheet">${state.selectedMapPlaceId ? mapBottomSheetHtml(findAnyPlace(state.selectedMapPlaceId)) : ''}</div>
 
       <div class="map-floating-bottom" id="mapLegend" style="${state.selectedMapPlaceId ? 'display:none;' : ''}">
         <span class="legend-dot" style="background:#FF8A00"></span>Food &nbsp;
@@ -2400,10 +2404,40 @@ function initMap(savedList){
   mapGL.on('moveend', ()=>{
     const c = mapGL.getCenter();
     state.mapView = { center: [c.lat, c.lng], zoom: mapGL.getZoom(), bearing: mapGL.getBearing() };
-    scheduleNearbyPOIRefresh();
   });
 
-  mapGL.on('click', ()=> deselectMapPlace());
+  // Tapping empty map: dismiss. Tapping one of the map's own built-in place
+  // labels (Liberty renders these natively — malls, restaurants, landmarks —
+  // no extra fetch needed): show it in the bottom sheet as a candidate the
+  // user can add. A small tolerance box around the tap point (not just the
+  // exact pixel) makes this forgiving on a touchscreen.
+  mapGL.on('click', (e)=>{
+    const box = [[e.point.x-8, e.point.y-8],[e.point.x+8, e.point.y+8]];
+    const features = mapGL.queryRenderedFeatures(box);
+    const feature = features.find(f => f.sourceLayer === 'poi' && f.properties && f.properties.name);
+    if(feature && feature.geometry && feature.geometry.type === 'Point'){
+      const coords = feature.geometry.coordinates;
+      const props = feature.properties;
+      const meta = poiClassMeta(props.class || props.subclass);
+      currentCandidatePlace = {
+        id: 'poi-' + Math.round(coords[1]*1e6) + '-' + Math.round(coords[0]*1e6),
+        name: props.name,
+        area: '',
+        cat: meta.label,
+        kind: meta.kind,
+        icon: meta.icon,
+        rating: 0,
+        tags: [],
+        link: null,
+        lat: coords[1],
+        lng: coords[0],
+        discovered: true,
+      };
+      selectMapPlace(currentCandidatePlace.id);
+      return;
+    }
+    deselectMapPlace();
+  });
 
   mapGL.on('load', function(){
     // Liberty includes 3D building data (fill-extrusion layers) for when a map is
@@ -2429,9 +2463,6 @@ function initMap(savedList){
     }
     mapMarkers = [];
     renderMapMarkers(savedList);
-    discoveredMarkers = [];
-    renderDiscoveredMarkers();
-    scheduleNearbyPOIRefresh();
 
     // If in-app directions were started from another tab, the map has just
     // finished mounting fresh — draw the pending route and start live tracking now.
@@ -2485,7 +2516,7 @@ function mapBottomSheetHtml(p){
     distText = ' · ' + formatDistance(d);
   }
   if(p.discovered){
-    const tint = p.group === 'utility' ? '#FBE9E5' : '#E5E7EB';
+    const tint = p.kind==='food' ? '#FFE1C2' : '#E5E7EB';
     return `
       <div class="map-sheet-card" onclick="openMapPlaceDetail('${p.id}')">
         <div class="map-sheet-photo" style="background:${tint};">${p.icon}</div>
@@ -2558,7 +2589,7 @@ function discoveredPlaceDetailHtml(p){
           <div class="place-meta">${p.cat}</div>
         </div>
       </div>
-      <div class="field-locked" style="margin:10px 0;">Found on OpenStreetMap — not a biteScout listing yet. Add it to start tracking real visits and reviews.</div>
+      <div class="field-locked" style="margin:10px 0;">Shown on the map but not a biteScout listing yet — add it to start tracking real visits and reviews.</div>
       <div class="place-actions">
         <button class="btn btn-primary" onclick="addDiscoveredPlace('${p.id}')">${icon('plus',{size:13})} Add to biteScout</button>
       </div>
@@ -2666,146 +2697,21 @@ function onMapSearchSubmit(){
    stations, restaurants and cafes near a searched point. Best-effort: if it
    fails or times out, the geocoded location search above still already
    worked, so this failing silently-ish is acceptable — it's a bonus layer. */
-/* Debounced so panning/zooming doesn't hammer Overpass's free public server
-   with a request on every tiny movement — only fires ~900ms after the map
-   settles. */
-let poiRefreshTimer = null;
-function scheduleNearbyPOIRefresh(){
-  clearTimeout(poiRefreshTimer);
-  poiRefreshTimer = setTimeout(fetchNearbyPOIs, 500);
-}
-
-/* Always-on background layer of well-known nearby points of interest — shows
-   automatically for whatever's currently in view (like Google/Apple Maps),
-   not just after an explicit search. Uses Overpass API against the map's
-   actual visible bounds. Un-adopted places never persist here permanently —
-   this simply reflects "what's around right now"; only tapping "Add to
-   biteScout" turns one into a real, permanent cobalt/orange biteScout place. */
-let poiFetchController = null;
-function fetchNearbyPOIs(){
-  if(!mapGL) return;
-
-  // Don't bother at very wide zoom levels — city/country view would return
-  // thousands of results and just clutter the map (same convention real map
-  // apps use: POI icons only appear once you're zoomed in reasonably close).
-  // Zoomed in further than before too — a smaller area means a smaller,
-  // faster-to-process query for Overpass's shared free server.
-  if(mapGL.getZoom() < 13){
-    DISCOVERED_PLACES = [];
-    renderDiscoveredMarkers();
-    return;
-  }
-
-  // Cancel any still-in-flight previous request — otherwise a slow older
-  // response could land after a newer one and show stale pins for the
-  // wrong area.
-  if(poiFetchController) poiFetchController.abort();
-  poiFetchController = new AbortController();
-  const timeout = setTimeout(()=> poiFetchController.abort(), 10000);
-
-  const b = mapGL.getBounds();
-  const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
-
-  // nwr (node/way/relation) instead of just node — parks, hospitals, and museums
-  // are frequently mapped as areas in OSM, not single points, so node-only
-  // queries were missing most of them.
-  const query = `[out:json][timeout:10];(
-    nwr["shop"="mall"](${bbox});
-    nwr["shop"="supermarket"](${bbox});
-    nwr["shop"="convenience"](${bbox});
-    nwr["amenity"="restaurant"](${bbox});
-    nwr["amenity"="cafe"](${bbox});
-    nwr["amenity"="fast_food"](${bbox});
-    nwr["tourism"="zoo"](${bbox});
-    nwr["tourism"="museum"](${bbox});
-    nwr["leisure"="park"](${bbox});
-    nwr["leisure"="garden"](${bbox});
-    nwr["amenity"="fuel"](${bbox});
-    nwr["amenity"="police"](${bbox});
-    nwr["amenity"="hospital"](${bbox});
-    nwr["amenity"="clinic"](${bbox});
-  );out center 50;`;
-
-  fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    body: 'data=' + encodeURIComponent(query),
-    signal: poiFetchController.signal,
-  })
-    .then(res => { clearTimeout(timeout); if(!res.ok) throw new Error('bad status ' + res.status); return res.json(); })
-    .then(data => {
-      const named = (data.elements || []).filter(e => e.tags && e.tags.name);
-      DISCOVERED_PLACES = named.slice(0, 50).map(e => {
-        const id = 'poi-' + e.id;
-        if(PLACES.find(p=>p.id===id)) return null; // already adopted as a real biteScout place — skip, it renders as a saved pin instead
-        const catKey = e.tags.shop || e.tags.amenity || e.tags.tourism || e.tags.leisure;
-        const meta = POI_CATEGORY_MAP[catKey] || { label: catKey || 'Place', icon: '📍', kind: 'place', group: 'interest' };
-        // Nodes give lat/lon directly; ways/relations give a center object instead.
-        const lat2 = e.lat !== undefined ? e.lat : (e.center ? e.center.lat : null);
-        const lon2 = e.lon !== undefined ? e.lon : (e.center ? e.center.lon : null);
-        if(lat2 == null || lon2 == null) return null;
-        return {
-          id: id,
-          name: e.tags.name,
-          area: '',
-          cat: meta.label,
-          kind: meta.kind,
-          icon: meta.icon,
-          group: meta.group,
-          rating: 0,
-          tags: [],
-          link: null,
-          lat: lat2,
-          lng: lon2,
-          discovered: true,
-        };
-      }).filter(Boolean);
-      renderDiscoveredMarkers();
-    })
-    .catch(err => {
-      clearTimeout(timeout);
-      if(err.name !== 'AbortError'){
-        console.error('Nearby POI search failed:', err);
-      }
-    });
-}
-
-/* Discovered POIs are color-coded by group: light grey for general points of
-   interest (malls, museums, zoos, restaurants...), red for utility/emergency
-   services (gas stations, police, hospital, clinic) — distinct from the
-   cobalt/orange used for the user's own saved biteScout places. */
-function renderDiscoveredMarkers(){
-  if(!mapGL) return;
-  discoveredMarkers.forEach(m=> m.remove());
-  discoveredMarkers = [];
-  DISCOVERED_PLACES.forEach(p=>{
-    const color = p.group === 'utility' ? '#BE4B33' : '#9CA3AF';
-    const el = document.createElement('div');
-    el.style.cssText = 'cursor:pointer;';
-    el.innerHTML = mapPinSvg(color, 28);
-    el.addEventListener('click', function(e){
-      e.stopPropagation();
-      selectMapPlace(p.id);
-    });
-    const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([p.lng, p.lat]).addTo(mapGL);
-    discoveredMarkers.push(marker);
-  });
-}
-
 /* A selected map pin can be either a real, saved biteScout place or a
-   temporary discovered POI — this looks in both places. */
+   just-tapped candidate from the map's own built-in labels — this checks both. */
 function findAnyPlace(id){
-  return PLACES.find(p=>p.id===id) || DISCOVERED_PLACES.find(p=>p.id===id);
+  return PLACES.find(p=>p.id===id) || (currentCandidatePlace && currentCandidatePlace.id===id ? currentCandidatePlace : null);
 }
 
-/* Promotes a discovered POI into a real biteScout place — no rating is
+/* Promotes a tapped map candidate into a real biteScout place — no rating is
    fabricated (stays 0/unrated) since biteScout's whole premise is trust from
    real visits, not assumed defaults. */
 function addDiscoveredPlace(id){
-  const p = DISCOVERED_PLACES.find(x=>x.id===id);
+  const p = currentCandidatePlace && currentCandidatePlace.id === id ? currentCandidatePlace : null;
   if(!p) return;
   const newPlace = { id:p.id, name:p.name, area:p.area, cat:p.cat, kind:p.kind, icon:p.icon, rating:0, tags:[], link:null, lat:p.lat, lng:p.lng };
   PLACES.push(newPlace);
-  DISCOVERED_PLACES = DISCOVERED_PLACES.filter(x=>x.id!==id);
+  currentCandidatePlace = null;
   if(!state.savedPlaces.includes(newPlace.id)) state.savedPlaces.push(newPlace.id);
   syncUserData();
 
@@ -2823,7 +2729,6 @@ function addDiscoveredPlace(id){
 
   toast(newPlace.name + ' added to biteScout!');
   renderMapMarkers(currentMapPlaceList());
-  renderDiscoveredMarkers();
   selectMapPlace(newPlace.id);
   const detailScreen = document.getElementById('mapDetailScreen');
   if(detailScreen && !detailScreen.classList.contains('hide')){
