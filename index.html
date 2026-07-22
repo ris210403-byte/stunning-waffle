@@ -1287,6 +1287,48 @@
     color:var(--coffee);
     outline:none;
   }
+  .map-nav-bar{
+    position:absolute;
+    top:66px; left:14px; right:14px;
+    z-index:1000;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:#fff;
+    border-radius:var(--r-md);
+    padding:10px 12px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.25);
+  }
+  .map-nav-info{ flex:1; min-width:0; }
+  .map-nav-dest{
+    display:flex;
+    align-items:center;
+    gap:5px;
+    font-weight:700;
+    font-size:13px;
+    color:var(--ink);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .map-nav-meta{
+    font-size:11px;
+    color:#6B7280;
+    margin-top:2px;
+  }
+  .map-nav-end{
+    flex-shrink:0;
+    background:var(--chili);
+    color:#fff;
+    border:none;
+    border-radius:16px;
+    padding:8px 14px;
+    font-family:inherit;
+    font-weight:700;
+    font-size:12px;
+    cursor:pointer;
+  }
+
   .map-floating-filter{
     top:66px;
   }
@@ -1608,10 +1650,14 @@ const state = {
   mapSort: 'recommended',
   mapSearchQuery: '',
   selectedMapPlaceId: null,
+  activeRoute: null,
   onboardingIndex: 0,
 };
 
 let mapGL = null;
+let youAreHereMarker = null; // stored so live tracking can move it, not just create it once
+let currentRouteGeoJSON = null; // the active in-app route line, if any (survives a map rebuild)
+let navWatchId = null; // navigator.geolocation.watchPosition id, for live position tracking during navigation
 let mapMarkers = [];
 
 /* Temporary, non-persisted points of interest shown after a broad area search
@@ -1714,6 +1760,25 @@ function colorForId(id){
   let hash = 0;
   for(let i=0; i<id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
+/* Loads places that have already been adopted (by anyone) from Firestore into
+   the local PLACES catalog — this is what makes an added place survive
+   logout/login and show up consistently everywhere, not just for the person
+   who originally added it in that browser session. */
+function loadAdoptedPlaces(){
+  db.collection('places').get().then(function(snap){
+    let addedAny = false;
+    snap.forEach(function(doc){
+      if(!PLACES.find(p=>p.id===doc.id)){
+        PLACES.push({ id: doc.id, ...doc.data() });
+        addedAny = true;
+      }
+    });
+    if(addedAny && (state.tab === 'discover' || state.tab === 'diary' || state.tab === 'map')) render();
+  }).catch(function(err){
+    console.error('Failed to load adopted places', err);
+  });
 }
 
 function loadRealPeople(){
@@ -2001,6 +2066,7 @@ function placeCardHtml(p){
         ${flagBadge(p)}
         <div class="place-actions">
           ${saveBtn}
+          <button class="btn btn-ghost" onclick="startInAppDirections('${p.id}')">${icon('compass',{size:13})} Directions</button>
           <button class="btn btn-ghost" onclick="setTab('diary')">${icon('book-open',{size:13})} Diary</button>
           ${linkButton(p)}
         </div>
@@ -2253,6 +2319,14 @@ function renderMap(){
         <div id="mapCanvas" style="width:100%;height:100%;"></div>
       </div>
 
+      ${state.activeRoute ? `
+      <div class="map-nav-bar">
+        <div class="map-nav-info">
+          <div class="map-nav-dest">${icon('compass',{size:14})} To ${state.activeRoute.destName}</div>
+          <div class="map-nav-meta">${formatDistance(state.activeRoute.distanceKm)} · ~${state.activeRoute.etaMin} min (no live traffic) · <span id="navDistanceLive"></span></div>
+        </div>
+        <button class="map-nav-end" onclick="endInAppDirections()">End</button>
+      </div>` : `
       <div class="map-floating-filter">
         <button data-filter="all" class="${state.mapFilter==='all'?'active':''}" onclick="setMapFilter('all')">All</button>
         <button data-filter="food" class="${state.mapFilter==='food'?'active':''}" onclick="setMapFilter('food')">${icon('utensils',{size:13})} Food</button>
@@ -2260,7 +2334,7 @@ function renderMap(){
         <select class="map-sort-select" onchange="setMapSort(this.value)">
           ${sortOptions.map(o=>`<option value="${o.val}" ${state.mapSort===o.val?'selected':''}>Sort: ${o.label}</option>`).join('')}
         </select>
-      </div>
+      </div>`}
 
       ${isGuest() ? `<div class="cap-meter"><div class="cap-meter-row"><span>Saved on map</span><span>${state.savedPlaces.length} / ${CAPS.guest.saves}</span></div><div class="cap-track"><div class="cap-fill" style="width:${Math.min(100,(state.savedPlaces.length/CAPS.guest.saves)*100)}%"></div></div></div>` : ''}
 
@@ -2341,7 +2415,7 @@ function initMap(savedList){
     if(state.userLocation){
       const el = document.createElement('div');
       el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#0F6DBE;border:3px solid #fff;box-shadow:0 0 0 2px rgba(15,109,190,0.35);';
-      new maplibregl.Marker({ element: el })
+      youAreHereMarker = new maplibregl.Marker({ element: el })
         .setLngLat([state.userLocation.lng, state.userLocation.lat])
         .setPopup(new maplibregl.Popup({ offset: 12 }).setText('You are here'))
         .addTo(mapGL);
@@ -2351,6 +2425,14 @@ function initMap(savedList){
     discoveredMarkers = [];
     renderDiscoveredMarkers();
     scheduleNearbyPOIRefresh();
+
+    // If in-app directions were started from another tab, the map has just
+    // finished mounting fresh — draw the pending route and start live tracking now.
+    drawRouteLine();
+    if(currentRouteGeoJSON && navWatchId == null){
+      startLiveTracking();
+      fitRouteBounds();
+    }
   });
 }
 
@@ -2719,6 +2801,19 @@ function addDiscoveredPlace(id){
   DISCOVERED_PLACES = DISCOVERED_PLACES.filter(x=>x.id!==id);
   if(!state.savedPlaces.includes(newPlace.id)) state.savedPlaces.push(newPlace.id);
   syncUserData();
+
+  // Persist the actual place details too, not just the save reference — Firestore
+  // only remembers *that* you saved something (the ID, via syncUserData above)
+  // unless we also write the real place data somewhere permanent. This is what
+  // makes an adopted place survive logout/login and show up for other users too.
+  db.collection('places').doc(newPlace.id).set({
+    name: newPlace.name, area: newPlace.area, cat: newPlace.cat, kind: newPlace.kind,
+    icon: newPlace.icon, rating: newPlace.rating, tags: newPlace.tags, link: newPlace.link,
+    lat: newPlace.lat, lng: newPlace.lng,
+    addedBy: fbUser ? fbUser.uid : null,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+  }).catch(function(err){ console.error('Failed to persist new place', err); });
+
   toast(newPlace.name + ' added to biteScout!');
   renderMapMarkers(currentMapPlaceList());
   renderDiscoveredMarkers();
@@ -2727,6 +2822,125 @@ function addDiscoveredPlace(id){
   if(detailScreen && !detailScreen.classList.contains('hide')){
     document.getElementById('mapDetailBody').innerHTML = placeCardHtml(newPlace);
   }
+}
+
+/* ============ IN-APP DIRECTIONS ============ */
+/* One-time route calculation (distance + a rough baseline duration — NOT
+   traffic-aware) via OSRM's free public routing API, drawn as a line on the
+   map. Paired with live GPS position tracking so the "you are here" dot
+   actually moves with you in real time. No rerouting, no traffic, no voice
+   turn-by-turn — for that, the existing "Navigate" button still hands off to
+   the user's own Google Maps/Waze app, same as it always has. */
+function startInAppDirections(placeId){
+  const p = findAnyPlace(placeId);
+  if(!p) return;
+
+  if(!state.userLocation){
+    toast('Finding your location…');
+    requestUserLocation(()=>{
+      if(state.userLocation) startInAppDirections(placeId);
+      else toast('Location unavailable — cannot calculate a route.');
+    });
+    return;
+  }
+
+  toast('Calculating route…');
+  const url = `https://router.project-osrm.org/route/v1/driving/${state.userLocation.lng},${state.userLocation.lat};${p.lng},${p.lat}?geometries=geojson&overview=full`;
+
+  fetch(url)
+    .then(res => { if(!res.ok) throw new Error('bad status ' + res.status); return res.json(); })
+    .then(data => {
+      if(!data.routes || !data.routes.length){ toast('No route found.'); return; }
+      const route = data.routes[0];
+      currentRouteGeoJSON = route.geometry;
+      state.activeRoute = {
+        destName: p.name,
+        destLat: p.lat,
+        destLng: p.lng,
+        distanceKm: route.distance / 1000,
+        etaMin: Math.round(route.duration / 60),
+      };
+      toast(`Route to ${p.name} ready.`);
+
+      if(state.tab === 'map' && mapGL){
+        // Already on a live map — draw directly, no need to switch tabs (which
+        // would otherwise rebuild the whole map unnecessarily).
+        drawRouteLine();
+        startLiveTracking();
+        fitRouteBounds();
+      } else {
+        // Not currently on the map — switch there; the map's own 'load' handler
+        // will pick up currentRouteGeoJSON automatically once it finishes mounting.
+        setTab('map');
+      }
+    })
+    .catch(err => {
+      console.error('Route calculation failed:', err);
+      toast('Could not calculate a route — check your connection.');
+    });
+}
+
+function drawRouteLine(){
+  if(!mapGL || !currentRouteGeoJSON) return;
+  const geojson = { type: 'Feature', geometry: currentRouteGeoJSON };
+  if(mapGL.getSource('route-line')){
+    mapGL.getSource('route-line').setData(geojson);
+  } else {
+    mapGL.addSource('route-line', { type: 'geojson', data: geojson });
+    mapGL.addLayer({
+      id: 'route-line-layer',
+      type: 'line',
+      source: 'route-line',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': '#0F6DBE', 'line-width': 5, 'line-opacity': 0.85 },
+    });
+  }
+}
+
+function fitRouteBounds(){
+  if(!mapGL || !currentRouteGeoJSON) return;
+  const coords = currentRouteGeoJSON.coordinates;
+  if(!coords || !coords.length) return;
+  const bounds = coords.reduce((b,c)=> b.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]));
+  mapGL.fitBounds(bounds, { padding: 70, maxZoom: 16 });
+}
+
+/* Pure client-side GPS watch — free, no rate limit, no external API involved.
+   Only the one-time route calculation above touches OSRM; this just reads the
+   phone's own location continuously. */
+function startLiveTracking(){
+  if(!navigator.geolocation) return;
+  if(navWatchId != null) navigator.geolocation.clearWatch(navWatchId);
+  navWatchId = navigator.geolocation.watchPosition(
+    (pos)=>{
+      state.userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      try{
+        if(youAreHereMarker) youAreHereMarker.setLngLat([state.userLocation.lng, state.userLocation.lat]);
+      }catch(e){ /* map/marker no longer mounted (user switched tabs) — tracking continues regardless */ }
+      const distEl = document.getElementById('navDistanceLive');
+      if(distEl && state.activeRoute){
+        // Straight-line re-estimate as you move, just for this live readout —
+        // not a recalculated road route (that would mean repeated OSRM calls,
+        // which their free server's usage policy doesn't allow for continuous polling).
+        const d = distanceKm(state.userLocation.lat, state.userLocation.lng, state.activeRoute.destLat, state.activeRoute.destLng);
+        distEl.textContent = formatDistance(d) + ' left (straight-line)';
+      }
+    },
+    (err)=>{ console.error('Live tracking error:', err); },
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+  );
+}
+
+function endInAppDirections(){
+  if(navWatchId != null){ navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
+  state.activeRoute = null;
+  currentRouteGeoJSON = null;
+  if(mapGL){
+    if(mapGL.getLayer('route-line-layer')) mapGL.removeLayer('route-line-layer');
+    if(mapGL.getSource('route-line')) mapGL.removeSource('route-line');
+  }
+  toast('Navigation ended.');
+  render();
 }
 
 function onLocateMeClick(){
@@ -3543,6 +3757,7 @@ renderOnboardingSlide();
 setupOnboardingSwipe();
 loadFlagCounts();
 loadRealPeople();
+loadAdoptedPlaces();
 
 // Only first-time installs see the onboarding carousel — instantly hide it
 // (no animation) if this device has already been through it before.
