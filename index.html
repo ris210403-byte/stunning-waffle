@@ -1775,7 +1775,14 @@ function loadAdoptedPlaces(){
         addedAny = true;
       }
     });
-    if(addedAny && (state.tab === 'discover' || state.tab === 'diary' || state.tab === 'map')) render();
+    if(!addedAny) return;
+    if(state.tab === 'map' && mapGL){
+      // Already on a live map — just refresh which pins show, don't tear down
+      // and rebuild the whole map (that's what was causing the extra delay).
+      renderMapMarkers(currentMapPlaceList());
+    } else if(state.tab === 'discover' || state.tab === 'diary'){
+      render();
+    }
   }).catch(function(err){
     console.error('Failed to load adopted places', err);
   });
