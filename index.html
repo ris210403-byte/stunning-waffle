@@ -449,6 +449,36 @@
     opacity:1;
   }
 
+  .segment-toggle{
+    display:flex;
+    gap:4px;
+    background:var(--paper-dim);
+    border-radius:14px;
+    padding:3px;
+    margin-bottom:14px;
+  }
+  .segment-toggle button{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:5px;
+    border:none;
+    background:transparent;
+    color:#6B7280;
+    padding:8px 10px;
+    border-radius:11px;
+    font-family:inherit;
+    font-weight:700;
+    font-size:12px;
+    cursor:pointer;
+  }
+  .segment-toggle button.active{
+    background:#fff;
+    color:var(--coffee);
+    box-shadow:0 2px 6px rgba(0,0,0,0.08);
+  }
+
   /* ===== Settings overlay ===== */
   .settings-screen{
     position:fixed;
@@ -1817,6 +1847,7 @@ const state = {
   mapView: null,          // {center:[lat,lng], zoom} — preserves pan/zoom across re-renders
   hasAttemptedAutoLocate: false, // ensures we only auto-request location once per session
   focusPlaceId: null, // set when jumping from Diary to a specific place on the map
+  communityView: 'activity', // 'activity' | 'people' — separates the two so Community doesn't feel like one long cluttered list
   peopleSearchOpen: false,
   peopleSearchQuery: '',
   diaryFilter: 'all',
@@ -2350,8 +2381,45 @@ function renderDiscoverBody(){
       : `<div class="empty-note">No ${state.discoverFilter==='all'?'':state.discoverFilter+' '}spots match these filters.</div>`;
   }
 
-  filtered.forEach(p=> html += placeCardHtml(p));
+  filtered.forEach(p=> html += placeListItemHtml(p));
   return html;
+}
+
+/* Compact list-item card for Discover's scrolling list — the full placeCardHtml
+   (photos, ratings, visit log, tags, four action buttons) was being rendered
+   for every single item in the list, which is exactly what made it feel like
+   a wall of clutter. This shows just enough to scan and decide, with a quick
+   save/remove toggle right there — tap the card itself for the full detail. */
+/* Shows the most recent real uploaded photo as the thumbnail when one exists —
+   the icon-in-a-colored-square is just a fallback for places nobody's
+   photographed yet, not the default treatment once real photos exist. */
+function placeThumbHtml(p, tint, sizePx){
+  sizePx = sizePx || 56;
+  if(p.photos && p.photos.length > 0){
+    const latest = p.photos[p.photos.length - 1];
+    return `<img src="${latest.url}" alt="${p.name}" style="width:${sizePx}px;height:${sizePx}px;border-radius:12px;object-fit:cover;flex-shrink:0;">`;
+  }
+  return `<div class="map-sheet-photo" style="background:${tint};width:${sizePx}px;height:${sizePx}px;">${p.icon}</div>`;
+}
+
+function placeListItemHtml(p){
+  const saved = state.savedPlaces.includes(p.id);
+  const tint = p.kind==='food' ? '#FFE1C2' : '#D7EDF8';
+  const saveCount = p.saveCount || 0;
+  const metaText = saveCount > 0
+    ? `${icon('check',{size:11,color:'#0F6DBE'})} ${saveCount} real ${saveCount===1?'save':'saves'}`
+    : 'New';
+  return `
+    <div class="map-sheet-card" onclick="openMapPlaceDetail('${p.id}')" style="margin-bottom:10px;">
+      ${placeThumbHtml(p, tint)}
+      <div class="map-sheet-info">
+        <div class="map-sheet-name">${p.name}</div>
+        <div class="map-sheet-meta">${metaText} · ${p.cat}</div>
+      </div>
+      <button class="map-sheet-save ${saved?'saved':''}" onclick="event.stopPropagation(); toggleSave('${p.id}');" title="${saved?'Remove':'Save'}">
+        ${icon(saved?'check':'plus',{size:16})}
+      </button>
+    </div>`;
 }
 
 function placeCardHtml(p){
@@ -2396,7 +2464,7 @@ function placeCardHtml(p){
         ${flagBadge(p)}
         ${(p.photos && p.photos.length > 0) ? `
         <div class="photo-strip">
-          ${p.photos.slice(-8).reverse().map(ph => `<img src="${ph.url}" alt="Photo by ${ph.displayName}" class="photo-thumb">`).join('')}
+          ${p.photos.slice(-5).reverse().map(ph => `<img src="${ph.url}" alt="Photo by ${ph.displayName}" class="photo-thumb">`).join('')}
         </div>` : ''}
         ${saved ? `
         <div class="rate-section" style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;">
@@ -3066,7 +3134,7 @@ function mapBottomSheetHtml(p){
     const tint = p.kind==='food' ? '#FFE1C2' : '#E5E7EB';
     return `
       <div class="map-sheet-card" onclick="openMapPlaceDetail('${p.id}')">
-        <div class="map-sheet-photo" style="background:${tint};">${p.icon}</div>
+        ${placeThumbHtml(p, tint)}
         <div class="map-sheet-info">
           <div class="map-sheet-name">${p.name}</div>
           <div class="map-sheet-meta">${p.cat} · Not yet on biteScout${distText}</div>
@@ -3080,7 +3148,7 @@ function mapBottomSheetHtml(p){
   const saved = state.savedPlaces.includes(p.id);
   return `
     <div class="map-sheet-card" onclick="openMapPlaceDetail('${p.id}')">
-      <div class="map-sheet-photo" style="background:${tint};">${p.icon}</div>
+      ${placeThumbHtml(p, tint)}
       <div class="map-sheet-info">
         <div class="map-sheet-name">${p.name}</div>
         <div class="map-sheet-meta">${icon('star',{size:12,filled:true,color:'#FFC145'})} ${p.rating} · ${p.cat}${distText}</div>
@@ -3567,46 +3635,72 @@ function setSortBy(s){
 }
 
 function renderPeople(){
-  let html = `<div class="section-eyebrow">Community</div><div class="section-title">Recent activity</div>`;
+  let html = `<div class="section-eyebrow">Community</div><div class="section-title">${state.communityView==='people' ? 'Members' : 'Activity'}</div>`;
 
-  html += `<button class="people-add-toggle" onclick="togglePeopleSearch()">${state.peopleSearchOpen ? icon('x',{size:13})+' Close search' : icon('plus',{size:13})+' Find people'}</button>`;
+  html += `
+    <div class="segment-toggle">
+      <button class="${state.communityView!=='people'?'active':''}" onclick="setCommunityView('activity')">${icon('bell',{size:13})} Activity</button>
+      <button class="${state.communityView==='people'?'active':''}" onclick="setCommunityView('people')">${icon('users',{size:13})} People</button>
+    </div>`;
 
-  if(state.peopleSearchOpen){
-    html += `
-      <div class="search-bar" style="margin-top:10px;">
-        <span class="search-ic">${icon('search', {size:15})}</span>
-        <input id="peopleSearchInput" placeholder="Search by name..." value="${state.peopleSearchQuery}" oninput="onPeopleSearchInput(this.value)">
-        <span id="peopleSearchClearWrap">${state.peopleSearchQuery ? `<button class="search-clear" onclick="onPeopleSearchInput('')">${icon('x', {size:11})}</button>` : ''}</span>
-      </div>`;
+  if(state.communityView === 'people'){
+    html += `<button class="people-add-toggle" onclick="togglePeopleSearch()">${state.peopleSearchOpen ? icon('x',{size:13})+' Close search' : icon('plus',{size:13})+' Find people'}</button>`;
+
+    if(state.peopleSearchOpen){
+      html += `
+        <div class="search-bar" style="margin-top:10px;">
+          <span class="search-ic">${icon('search', {size:15})}</span>
+          <input id="peopleSearchInput" placeholder="Search by name..." value="${state.peopleSearchQuery}" oninput="onPeopleSearchInput(this.value)">
+          <span id="peopleSearchClearWrap">${state.peopleSearchQuery ? `<button class="search-clear" onclick="onPeopleSearchInput('')">${icon('x', {size:11})}</button>` : ''}</span>
+        </div>`;
+    }
   }
 
   html += `<div id="peopleBody">${renderPeopleBody()}</div>`;
   return html;
 }
 
+function setCommunityView(view){
+  state.communityView = view;
+  render();
+}
+
 function renderPeopleBody(){
   const cap = isGuest() ? CAPS.guest.connections : Infinity;
   const used = state.connections.length;
-  let html = '';
 
-  if(state.peopleSearchOpen){
-    const q = state.peopleSearchQuery.trim().toLowerCase();
-    if(q.length > 0){
-      const matches = REAL_PEOPLE.filter(p=>p.name.toLowerCase().includes(q));
-      html += `<div class="section-eyebrow" style="margin-top:14px;">Search results</div>`;
-      if(matches.length===0){
-        html += `<div class="empty-note">No one found matching "${state.peopleSearchQuery}".</div>`;
-      } else {
-        matches.forEach(p=> html += personRowHtml(p, cap, used));
+  if(state.communityView === 'people'){
+    let html = '';
+    if(state.peopleSearchOpen){
+      const q = state.peopleSearchQuery.trim().toLowerCase();
+      if(q.length > 0){
+        const matches = REAL_PEOPLE.filter(p=>p.name.toLowerCase().includes(q));
+        html += `<div class="section-eyebrow" style="margin-top:14px;">Search results</div>`;
+        if(matches.length===0){
+          html += `<div class="empty-note">No one found matching "${state.peopleSearchQuery}".</div>`;
+        } else {
+          matches.forEach(p=> html += personRowHtml(p, cap, used));
+        }
+        return html;
       }
+
+      // Search open but nothing typed yet — browse the full member directory.
+      const withDist = state.userLocation
+        ? REAL_PEOPLE.map(p=>({ ...p, dist: distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng) })).sort((a,b)=>a.dist-b.dist)
+        : REAL_PEOPLE;
+      html += `<div class="section-eyebrow" style="margin-top:14px;">${icon('map-pin',{size:11})} biteScout members</div>`;
+      if(withDist.length===0){
+        html += `<div class="empty-note">No one else has joined biteScout yet — invite a friend to test it with you!</div>`;
+      }
+      withDist.forEach(p=> html += personRowHtml(p, cap, used, (state.userLocation && p.dist!=null) ? formatDistance(p.dist) : null));
       return html;
     }
 
-    // Search open but nothing typed yet — browse the full member directory.
+    // Search closed — still browse the full directory by default.
     const withDist = state.userLocation
       ? REAL_PEOPLE.map(p=>({ ...p, dist: distanceKm(state.userLocation.lat, state.userLocation.lng, p.lat, p.lng) })).sort((a,b)=>a.dist-b.dist)
       : REAL_PEOPLE;
-    html += `<div class="section-eyebrow" style="margin-top:14px;">${icon('map-pin',{size:11})} biteScout members</div>`;
+    html += `<div class="section-eyebrow" style="margin-top:6px;">${icon('map-pin',{size:11})} biteScout members</div>`;
     if(withDist.length===0){
       html += `<div class="empty-note">No one else has joined biteScout yet — invite a friend to test it with you!</div>`;
     }
@@ -3616,8 +3710,7 @@ function renderPeopleBody(){
 
   // Default view: the real activity feed — this is what makes "trust from
   // real visits" something people see every time, not a line from onboarding.
-  html += activityFeedHtml();
-  return html;
+  return activityFeedHtml();
 }
 
 function personRowHtml(p, cap, used, distLabel){
